@@ -41,7 +41,7 @@ A personal wardrobe management app that catalogs clothing/shoes, lets the user b
 Clicking any single item (e.g., a specific top) in the catalog opens a detail page showing:
   - The processed/clean visual of the item
   - Wear stats: lifetime wears, wears in last 7 days / 30 days / 60 days / year (and custom range), last worn date
-  - Neglected flag if not worn in 60+ days (configurable threshold)
+  - Neglected flag if not worn in 60+ days / 2 months (configurable threshold). For an item that has **never** been worn, the clock starts from the date it was added to the catalog — so a newly added item is flagged only after 2 months in the closet without a wear, rather than immediately
   - All categories/tags it's linked to (e.g. "Work," "Going Out," "Date")
   - Brand (and a way to jump to "see all items from this brand")
   - Descriptive attribute tags (color, sleeve length, formality, material, pattern, etc.)
@@ -70,13 +70,15 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
 
 - **Logging wear:**
   - Mark an outfit (or individual items, if worn outside a saved outfit) as "worn today" — or backdate to a past date
+  - **Retroactive wear logging is a first-class action, not an edge case.** Occasion pieces — a formal dress worn to a wedding last spring — are worn rarely and unpredictably. The user must be able to add a past wear date directly from an item's detail page (not only through the calendar), so genuinely-worn items can be corrected out of the neglected list. Adding a past wear updates last-worn date, lifetime count, and cost-per-wear exactly as a same-day log would
   - **Optional OOTD photo:** when logging a wear, optionally attach a full-body photo (e.g. a mirror selfie) of the outfit as actually worn. It runs through the same background-removal pipeline as catalog items and becomes the day's thumbnail in the calendar view. This is what produces the "same person in different poses" calendar aesthetic referenced in the design direction below — it is photographic, not rendered
 - **Calendar view:**
   - Each day shows a thumbnail/visual of the outfit worn (if any) — the OOTD photo when one was attached, otherwise the assembled mannequin-layout composite of the outfit's items
   - Month view and week view
 - **Dashboard / stats view:**
-  - Per outfit: lifetime wear count, wears in last 7 days / 30 days / custom range, last worn date
-  - Per individual item: lifetime wear count, wears in last week/month, last worn date, which outfits it's been part of
+  - **Time windows use calendar periods, not rolling ones, for month and year.** "August" means August 1–31, not the last 30 days. A rolling window moves its own boundaries daily, so the same number means something different each time it's read; a calendar month is something the user can actually reason and recall against. Short windows ("last 7 days") stay rolling, where that genuinely is the intent
+  - Per outfit: lifetime wear count, wears this month / this year / custom range, last worn date
+  - Per individual item: lifetime wear count, wears this month / this year, last worn date, which outfits it's been part of
   - "Neglected items" view — surface items/outfits not worn in X days to encourage rotation
   - Passive visual marker (badge/dimmed thumbnail/colored border) directly on each item or outfit tile in the catalog and dashboard when it hasn't been worn in a configurable threshold (e.g., 60 days) — a glanceable flag, not a push notification
   - "Most worn" / "least worn" leaderboard
@@ -98,7 +100,8 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
 
 - Input purchase price per item (already captured in catalog metadata)
 - Auto-calculate cost-per-wear = purchase price ÷ lifetime wear count (updates as wear count increases)
-- Roll up cost-per-wear at the outfit level (sum of item costs ÷ times that exact outfit combo worn, and/or blended individual item cost-per-wear)
+- **Never-worn items display their full purchase price as the cost-per-wear**, not a blank. That is precisely what the item will cost per wear the first time it's worn, and it reads more intuitively than an empty value — a $200 coat you haven't worn yet is a $200-per-wear coat. A blank/em-dash is shown only when no price was recorded at all
+- **Outfit cost-per-wear = the sum of its items' individual cost-per-wear values.** Each garment earns its cost down independently through everything it's worn with, and an outfit inherits whatever each piece currently costs. This is deliberately *not* "total outfit price ÷ times this outfit was worn" — that formula would make a brand-new combination of well-worn favorites look expensive, which inverts the truth. If any item in the outfit has no recorded price, the outfit figure is a lower bound and must be labeled as partial rather than shown as exact
 - Sort/filter catalog by cost-per-wear (find your "best value" and "worst value" pieces)
 - Optional: total closet value, total spend by category/brand/season
 

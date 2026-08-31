@@ -191,6 +191,18 @@ rather than being enforced by the database.
 Cost-per-wear and neglected flags are **computed at read time**. Both change every time a wear is
 logged; storing them guarantees staleness.
 
+The three rules live in `lib/stats/` and `lib/outfits/` as pure functions (spec §3, §4):
+
+| Rule | Where | Behavior |
+|---|---|---|
+| Item cost-per-wear | `cost-per-wear.ts` | `price ÷ max(wears, 1)` — a never-worn item shows its full price, not a blank. Null only when unpriced |
+| Outfit cost-per-wear | `cost-per-wear.ts` | **Sum of the items' individual cost-per-wear values.** Not total price ÷ outfit wears — that would make a new combination of well-worn pieces look expensive |
+| Stat windows | `wear-windows.ts` | Month and year are **calendar periods** (August = Aug 1–31), not rolling. Only short windows ("last 7 days") roll |
+| Neglected | `neglected.ts` | 2 months (60 days, configurable). For never-worn items the clock starts at **date added to catalog**, not purchase date |
+
+Backdated wears feed all of these identically to same-day logs — which is the mechanism that keeps
+rarely-worn occasion pieces off the neglected list.
+
 ### Resolved — outfit editing carries history (versioned outfits)
 
 **Decision (2026-08-31): edit in place and carry wear history forward.** An outfit is a
@@ -251,7 +263,7 @@ closet-app/
 │   ├── images/               pipeline.ts · segmentation.ts · normalize.ts · storage.ts
 │   ├── import/               scrape.ts
 │   ├── outfits/              signature.ts · versions.ts · slots.ts
-│   ├── stats/                wear-stats.ts · cost-per-wear.ts · neglected.ts
+│   ├── stats/                wear-stats.ts · cost-per-wear.ts · neglected.ts · wear-windows.ts
 │   └── validation/           (zod schemas, shared client + server)
 ├── jobs/                     process-item-image.ts
 ├── prisma/                   schema.prisma · migrations/
@@ -278,7 +290,7 @@ shape the later phases.
 | **2.5 — Mannequin calibration** | Time-boxed ~1 day. Source or commission the neutral mannequin asset; composite ~10 real garments over it; tune per-category anchor boxes and shadow treatment until a full outfit reads correctly | The outfit visual is proven on real garments before the builder is built around it |
 | **3 — Browse & item detail** | Filters (category / color / brand / formality / sleeve), search, brand jump-through, item detail page *minus* wear stats | Catalog is genuinely navigable at ~100 items |
 | **4 — Outfit builder** | Mannequin-backed composite layout, per-slot carousels, live preview, per-item scale/offset adjustment, save / name / tag, signature + duplicate detection, edit-in-place (new `OutfitVersion`) + duplicate | Real outfits can be built and saved |
-| **5 — Wear tracking** | Log worn (today or backdated), outfits or loose items; **optional OOTD photo per wear** (option A — manual override/fallback); calendar month/week, image-first cells showing the rendered outfit per day | Daily logging habit starts; calendar matches the reference aesthetic |
+| **5 — Wear tracking** | Log worn (today or backdated), outfits or loose items; **"add a past wear" on the item detail page** as a first-class action; **optional OOTD photo per wear** (option A); calendar month/week, image-first cells | Daily logging habit starts; occasion pieces can be corrected off the neglected list |
 | **6 — Analytics** | Wear stats on item + outfit detail, cost-per-wear throughout, neglected badges, most/least-worn leaderboards, sort by CPW, closet totals | Spec §1–4 fully delivered |
 | **7 — Extras** | URL import; laundry status; "surprise me" generator; export JSON/CSV; weather; packing lists; gap analysis; declutter; return-window tracker | Chosen by what's actually missed in use |
 
@@ -313,5 +325,6 @@ Decision 5 is cosmetic and does not block Phases 0–2.
 | 2026-08-31 | Open decisions 1–3 resolved. Outfit editing = edit-in-place carrying history; data model gains `OutfitVersion` and `WearLog.outfitVersionId` to keep exact-combination stats accurate. Supabase confirmed; single-user confirmed. Spec §2 and §3 updated to match. |
 | 2026-08-31 | Design direction added (Everlane/COS/Indyx references) → new spec §5, new plan Design Direction section, theme tokens added to Phase 0. On-body rendering evaluated → new spec §6, new plan §1.2; option A (OOTD photo capture) added to Phase 5 and spec §3, option B deferred to Phase 7 pending decision 4, option C ruled out. `WearLog` gains OOTD image fields; `ImageJob` made polymorphic. |
 | 2026-08-31 | **Correction + scope change.** The travel-app reference is composited/rendered, not mirror selfies — the two reference screenshots showed different techniques and had been conflated. Goal restated as "me in varied poses per outfit, without photographing each outfit," which is option B. B promoted from deferred Phase 7 experiment to **primary direction**; A demoted to manual override/fallback. Added pose library (`UserPhoto`), render cache (`OutfitRender`), deterministic pose assignment, and a **Phase 2.5 quality spike** gating the Phase 4 builder design. Spec §6 rewritten. |
+| 2026-08-31 | **Stats rules corrected.** (1) Outfit cost-per-wear is the **sum of item cost-per-wears**, not total price ÷ outfit wear count. (2) Never-worn items show their **full price** as cost-per-wear rather than a blank. (3) Month/year stat windows are **calendar periods**, not rolling — new `lib/stats/wear-windows.ts`. (4) Neglected threshold confirmed at 2 months, clock starting from date added for never-worn items. (5) Retroactive wear logging promoted to a first-class action on the item detail page, so occasion pieces can be corrected off the neglected list. Spec §1, §3, §4 updated. |
 | 2026-08-31 | **Phase 0 scaffolded locally.** Actual toolchain versions differ from what this plan originally specified and are corrected above: **Next.js 16.3** (not 15 — Turbopack is now the default, request APIs are async-only, `middleware` is renamed `proxy`), **Tailwind v4** (CSS-first `@theme`, no `tailwind.config.ts`), **Prisma 7** (connection URLs moved from `schema.prisma` to a new `prisma.config.ts`; the client now requires a driver adapter, `@prisma/adapter-pg`). Node 26.8.1 installed via Homebrew. Note `npm i -D prisma` resolves to an 8.0 release candidate with an entirely different CLI — the dependency is pinned to `prisma@7` to match `@prisma/client`. |
 | 2026-08-31 | **Direction settled: garment fidelity outranks on-body realism.** New approach **D** (mannequin-backed layered composite) becomes the primary outfit visual — real garment cutouts layered over a neutral static mannequin figure with per-category anchors, contact shadows, and per-item scale/offset overrides. **B dropped** (generative = garment drift); `UserPhoto` and `OutfitRender` removed from the data model; `Item` gains `layoutScale`/`layoutOffset`. Phase 2.5 repurposed from try-on spike to mannequin calibration. Hanger/dress-form photography guidance added to spec §1 and Phase 1 — intake quality drives outfit-view quality more than the renderer does. Spec §1, §2, §6 updated. |
