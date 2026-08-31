@@ -1,0 +1,236 @@
+# Digital Closet Manager — Feature Specification
+
+## Overview
+A personal wardrobe management app that catalogs clothing/shoes, lets the user build and save outfits with a visual "on-body" layout, tracks wear frequency, and calculates cost-per-wear.
+
+---
+
+## 1. Clothing & Shoe Catalog
+
+- **Item intake methods:**
+  - Photo upload (taken by user)
+  - Link/URL import (scrape product image from a retailer link)
+  - Screenshot upload (from websites, social media, etc.)
+- **Recommended photography (materially affects outfit-view quality):** shoot garments on a hanger
+  or dress form rather than flat on a surface. A flat-lay has no dimension and reads as a flat
+  sticker when composited into the outfit view; a hung or formed garment retains shoulders, drape,
+  and interior shadow and composites convincingly. Cutouts taken from retailer model shots are
+  similarly good source material. The app should surface this as guidance in the capture flow, not
+  enforce it
+- **Automatic image processing pipeline (runs on every submitted item):**
+  - Remove background from the photo
+  - If the source is a model/lifestyle photo, isolate and remove the person, keeping only the garment
+  - Normalize the result into a consistent style across the whole catalog (e.g., same canvas size, same neutral background color/transparency, similar centering/scale) so every item looks visually uniform regardless of source
+  - Store both the original source image and the processed "clean" version
+- **Item metadata (manually entered or inferred):**
+  - Category (top, bottom, dress, outerwear, shoe, hat, accessory, etc.)
+  - Subcategory (t-shirt, blouse, jeans, sneakers, heels, etc.)
+  - Color(s)
+  - Brand
+  - Size
+  - Season/weather suitability (optional but useful — see suggestions below)
+  - Purchase price (for Feature 4)
+  - Purchase date / source link
+  - Descriptive attribute tags — e.g. sleeve length (short/long/sleeveless/strapless), silhouette, formality (casual/simple/fancy/dressy), material, pattern
+  - Custom freeform tags/categories (e.g. "work," "going out," "date," "favorite") — the same tag set used to categorize outfits, so an item can independently show which categories it's associated with
+- **Catalog browsing:**
+  - Grid/gallery view, filterable by category, color, brand, tag, formality, sleeve length, etc.
+  - Search bar (including search by brand)
+
+### Item Detail View
+Clicking any single item (e.g., a specific top) in the catalog opens a detail page showing:
+  - The processed/clean visual of the item
+  - Wear stats: lifetime wears, wears in last 7 days / 30 days / 60 days / year (and custom range), last worn date
+  - Neglected flag if not worn in 60+ days (configurable threshold)
+  - All categories/tags it's linked to (e.g. "Work," "Going Out," "Date")
+  - Brand (and a way to jump to "see all items from this brand")
+  - Descriptive attribute tags (color, sleeve length, formality, material, pattern, etc.)
+  - Cost-per-wear: original purchase price ÷ lifetime wear count
+  - List of outfits this item currently belongs to (with the ability to jump into any of them)
+
+---
+
+## 2. Outfit Builder
+
+- **Visual "virtual mannequin" layout:**
+  - Fixed vertical arrangement mimicking body position: hat/head accessory → top → outerwear layer (if applicable) → bottom → shoes, with bags/jewelry/other accessories positioned logically around the frame
+  - **A neutral digital mannequin figure is rendered behind the layered garments** (see §6, approach D), so exposed arms, neck, and legs fill the gaps between pieces and the outfit reads as occupying a body rather than as floating cutouts. The mannequin is a static rendered figure, not 3D geometry — garments are the user's real photographs layered over it with per-category anchor boxes and soft contact shadows
+- **Item selection UX:**
+  - Horizontal scroll/carousel for each clothing slot (e.g., scroll through all tops, then scroll through all bottoms, then all shoes, then optional accessories/hats)
+  - As the user scrolls/selects in each row, the mannequin-style preview updates live so they can see the full outfit assembled before saving
+- **Outfit saving & organization:**
+  - Save assembled outfit as a named entity
+  - Assign one or more categories/tags (e.g., "Work," "Date Night," "Going Out," "Gym")
+  - Ability to edit a saved outfit later (swap out one piece) — **the outfit keeps its name, tags, and full wear history through the edit.** It remains the same outfit, not a new one; see the outfit identity rule in Feature 3 for how this interacts with exact-combination stats
+  - Ability to duplicate an outfit as a starting point for a new one (the duplicate starts with a fresh, empty wear history)
+
+---
+
+## 3. Wear Tracking & Analytics
+
+- **Logging wear:**
+  - Mark an outfit (or individual items, if worn outside a saved outfit) as "worn today" — or backdate to a past date
+  - **Optional OOTD photo:** when logging a wear, optionally attach a full-body photo (e.g. a mirror selfie) of the outfit as actually worn. It runs through the same background-removal pipeline as catalog items and becomes the day's thumbnail in the calendar view. This is what produces the "same person in different poses" calendar aesthetic referenced in the design direction below — it is photographic, not rendered
+- **Calendar view:**
+  - Each day shows a thumbnail/visual of the outfit worn (if any) — the OOTD photo when one was attached, otherwise the assembled mannequin-layout composite of the outfit's items
+  - Month view and week view
+- **Dashboard / stats view:**
+  - Per outfit: lifetime wear count, wears in last 7 days / 30 days / custom range, last worn date
+  - Per individual item: lifetime wear count, wears in last week/month, last worn date, which outfits it's been part of
+  - "Neglected items" view — surface items/outfits not worn in X days to encourage rotation
+  - Passive visual marker (badge/dimmed thumbnail/colored border) directly on each item or outfit tile in the catalog and dashboard when it hasn't been worn in a configurable threshold (e.g., 60 days) — a glanceable flag, not a push notification
+  - "Most worn" / "least worn" leaderboard
+- **Outfit Detail View:**
+  - Clicking a saved outfit opens a detail page showing the full assembled visual (mannequin-style layout)
+  - Below/alongside it, the same per-item stat breakdown from the Item Detail View is shown individually for each piece in that outfit (each item's own lifetime wears, recent wear counts, neglected flag, categories, cost-per-wear, etc.) — so the user can see, at a glance, how each individual piece is performing even within the context of this one outfit
+  - Outfit-level stats also shown separately: lifetime wears of this exact outfit combination, wears in last week/month/year, last worn date. If the outfit has been edited, the all-versions total is shown alongside it (see *Edited outfits* below)
+- **Outfit identity rule (important):** An "outfit" is defined as the exact, specific combination of items saved together. Re-wearing one piece (e.g., the same jeans) with a different top/shoe combination counts as a *different* outfit, not a repeat. Wear-frequency and "neglected" logic at the outfit level must only track exact combination matches — it should never flag "you keep rewearing this outfit" just because one shared item (like a pair of pants) appears across multiple distinct outfits. Item-level reuse and outfit-level reuse are tracked completely separately.
+- **Edited outfits (clarification to the rule above):** Editing a saved outfit (swapping one piece) does **not** create a separate outfit — the outfit keeps its identity and its accumulated wear history. To keep this consistent with the exact-combination rule, each saved arrangement of items is a *version* of the outfit, and every wear is logged against the specific version worn. The outfit detail view therefore shows two clearly-labeled numbers:
+  - **Wears of this outfit** — across all versions, the continuous history of the look
+  - **Wears of this exact combination** — the current version only, satisfying the identity rule above
+  The "you wore this exact combo recently" warning under *Suggestion assist* matches on exact combination only, never on the broader all-versions count.
+- **Suggestion assist:**
+  - Optional: when building a new outfit, flag if the exact same combination was worn very recently (based on the outfit identity rule above, not shared individual pieces)
+
+---
+
+## 4. Cost-Per-Wear Tracking
+
+- Input purchase price per item (already captured in catalog metadata)
+- Auto-calculate cost-per-wear = purchase price ÷ lifetime wear count (updates as wear count increases)
+- Roll up cost-per-wear at the outfit level (sum of item costs ÷ times that exact outfit combo worn, and/or blended individual item cost-per-wear)
+- Sort/filter catalog by cost-per-wear (find your "best value" and "worst value" pieces)
+- Optional: total closet value, total spend by category/brand/season
+
+---
+
+## 5. Visual Design Direction
+
+**Principle: clean and simple — let the clothes shine.** The interface should read as a quiet
+gallery for the garments, never competing with them.
+
+Reference points (provided 2026-08-31): **Everlane** and **COS** product grids for the catalog;
+**Indyx** and similar wardrobe apps for the calendar.
+
+- **Imagery leads.** Item images are large, uncropped, and edge-to-edge in the grid. Metadata sits
+  quietly beneath — name, then brand, then supporting stats — never overlaid on the garment
+- **Neutral, warm-toned canvas.** Off-white/cream backgrounds rather than pure white or dark
+  chrome. Item images share one consistent background treatment (per the normalization pipeline in
+  Feature 1), so the grid reads as a single coherent set
+- **Minimal chrome.** Separation comes from whitespace and image edges, not borders, cards, or
+  drop shadows
+- **Restrained typography.** Light-weight sans-serif; small uppercase letter-spaced labels for
+  navigation and metadata; generous line height
+- **Color is reserved for signal.** The palette is essentially neutral, so the few colored
+  elements — the neglected-item marker, cost-per-wear highlights, laundry status — carry real
+  meaning by contrast
+- **Adjustable grid density.** A control to switch between a few large tiles and a dense
+  many-per-row view (as COS offers), since browsing a closet and scanning it are different tasks
+- **Calendar cells are image-first.** Each day is filled by its outfit visual with the date number
+  small in the corner; empty days stay genuinely empty rather than showing placeholder chrome
+
+---
+
+## 6. On-Body Rendering (Avatar)
+
+**Goal:** see outfits on a representation of the user rather than as a flat layout.
+
+Three approaches were evaluated on 2026-08-31, in ascending order of difficulty:
+
+**The target look (clarified 2026-08-31):** the same person, in varied natural poses, wearing each
+saved outfit — **without having to photograph themselves in every outfit.** Note that two different
+things appear in the reference screenshots and should not be conflated: the Indyx-style calendar is
+self-photographed mirror selfies (the phone is visible in hand), whereas the travel-app cards show
+front-facing, evenly-lit, varied-pose figures that are composited/rendered rather than
+self-photographed. The latter is the goal.
+
+**A. OOTD photo capture — in scope, but not the goal.** The user photographs themselves wearing
+the outfit; the image is background-removed and becomes that day's calendar visual. Reuses the
+existing image pipeline entirely and is always perfectly accurate, since it is a real photograph.
+Two limitations: it requires photographing every outfit, and it is retrospective — it cannot preview
+an outfit that hasn't been worn. Retained as a always-available manual option and as the fallback
+when generation is unavailable or looks wrong.
+
+**B. 2D virtual try-on with a pose library — evaluated and set aside (see Decision below).**
+The user uploads a small set of full-body reference photos of themselves (roughly 5–8, varied pose
+and angle) **once**. Saved outfits are then rendered onto those photos automatically, with each
+outfit deterministically assigned a pose so it is stable for that outfit but varies across the
+calendar — producing the lookbook effect in the reference screenshot.
+
+  - Multiple poses adds no technical difficulty: each generation is independent, so a pose library
+    is simply N× the generations
+  - The real difficulty is **complete outfits**. Dedicated try-on models (IDM-VTON, CatVTON, Leffa)
+    handle one garment per pass at high garment fidelity, so an outfit requires chained passes with
+    compounding artifacts; shoes render poorly and bags/jewelry largely do not work. General
+    image-editing models (Flux Kontext, Gemini-class) can compose a full outfit in one pass but with
+    lower garment fidelity — they may subtly redraw patterns, shift colors, or invent details
+  - **Required fidelity varies by surface,** which is what makes this tractable: a ~100px calendar
+    cell needs only silhouette and color to read correctly, while the outfit detail view is where
+    the user actually inspects garments and where the mannequin composite must remain available
+  - Generation takes roughly 10–40s and costs per call, so it runs on outfit save and is cached —
+    never live while scrolling the builder carousels
+
+**C. True 3D avatar with cloth simulation — out of scope.** Body reconstruction from photos is
+largely solved; the blocker is the garments. A flat product photo does not contain a garment's 3D
+shape, and producing simulation-ready meshes from single images remains an open research problem,
+so every item would need a bespoke 3D asset authored as a sewing pattern. Reference renders of
+neutral 3D mannequins wearing clothes (Magnopus and similar) are produced this way — they are
+constructed 3D garments, not photographs — which is why that exact look is not reachable from a
+photo-based catalog. Specialist, multi-person effort; not a feature of this app.
+
+**D. Mannequin-backed layered composite — the chosen direction (decided 2026-08-31).**
+Real garment cutouts are layered in correct z-order over a **neutral digital mannequin figure**
+rendered behind them, rather than floating against a blank background. The mannequin's exposed
+arms, neck, and legs fill the gaps between garments so the outfit reads as occupying a body.
+
+  - **Garments stay pixel-accurate** — they remain the user's own processed photographs, never
+    regenerated or redrawn. This is the deciding requirement: accurate clothes matter more than
+    being shown on a likeness of the user
+  - Per-category **anchor boxes** calibrated to the mannequin's proportions position and scale each
+    garment; soft contact shadows between layers separate top from bottom from outerwear
+  - **Per-item manual adjustment:** the user can nudge an item's scale and offset once; the
+    adjustment is stored on the item and applies in every outfit containing it. This handles
+    long-tail pieces (dusters, crop tops, oversized outerwear) that generic category anchors place
+    poorly
+  - **Source photography drives quality more than the renderer does.** A flat-lay photo has no
+    dimension and will read as a sticker regardless of layering. Garments photographed on a dress
+    form or hanger — or cut from retailer model shots — retain shoulders, drape, and interior
+    shadow, and composite convincingly. The intake guidance in Feature 1 should recommend
+    hanger/dress-form photography as the default for this reason
+  - **Realistic expectation:** a well-styled outfit arranged on a body form. Clearly better than
+    floating cutouts; not equivalent to a true 3D render, since a photographed garment cannot
+    reshape itself to the mannequin's pose
+
+**Decision:** **D is the primary outfit visual.** A (OOTD photo capture) is retained as an optional
+manual per-wear photo. **B is not planned** — it was the primary direction briefly, but it trades
+garment fidelity for on-body realism, and garment fidelity is the higher priority. C remains out of
+scope. B's analysis is retained above should the trade-off ever be worth revisiting.
+
+---
+
+## Suggested Additional Features to Consider
+
+These aren't in your original list but fit naturally given the data you'll already be capturing:
+
+1. **Weather & occasion-aware suggestions** — pull local weather and suggest outfits appropriate for the temperature/conditions, using the season/weather tags on items.
+2. **"Surprise me" / random outfit generator** — auto-assemble a valid outfit from underused items, directly addressing your stated goal of breaking out of repetition ruts.
+3. **Laundry/cleaning status** — mark an item as "in the wash" or "at the cleaners" so it's excluded from outfit suggestions until available again.
+4. **Packing lists for travel** — select a date range and destination weather, build a mini-wardrobe/packing list from your catalog.
+5. **Wardrobe gap analysis** — e.g., "you have 12 tops but only 2 bottoms that go with them" or "you have no warm outerwear."
+6. **Declutter/resale tracking** — flag items you're considering donating or selling, especially ones with high cost-per-wear or that haven't been worn in a long time.
+7. **Neglected-item visual marker (no notifications)** — on the dashboard/catalog, items or outfits that haven't been worn in a configurable threshold (e.g., 60 days) get a passive visual indicator (e.g., a badge, dimmed thumbnail, or colored border) rather than a push notification — a glanceable flag you notice when browsing, not an alert.
+8. **Fit/condition notes** — track items that need mending, no longer fit, or are showing wear, so they're excluded from suggestions.
+9. **Return-window tracker** — for online purchases, flag items still within a store's return period until you've confirmed you'll keep them.
+10. **Multi-person/shared closets** — if useful later, support more than one wardrobe profile (e.g., partner, family member) in the same app.
+11. **Export/backup** — download your catalog and wear history as a spreadsheet or JSON in case you switch apps someday.
+12. **Outfit history search** — "What did I wear the last time I went on a date?" style lookback, useful for not repeating an outfit in front of the same people/occasion.
+
+---
+
+## Technical Notes for the Implementing AI
+
+- **Background/model removal:** This is the trickiest technical piece. Options include an image-segmentation service or library (e.g., a background-removal API/model) run server-side whenever an item is submitted; for model photos specifically, a person-segmentation step is needed before isolating the garment. This should be flagged as a distinct pipeline step so the implementer can pick the right tool for it.
+- **Suggested core data model entities:** `Item` (with `original_image`, `processed_image`, category, metadata, price), `Outfit` (stable identity: name + category tags) with `OutfitVersion` (one exact ordered set of Item references; a new version is created on each edit), `WearLog` (date, outfit_id + outfit_version_id, or list of item_ids), `Tag`/`Category` (for both items and outfits). See `PLAN.md` for the full schema.
+- **Mannequin layout:** Can be implemented as a fixed-position visual template (CSS/layout slots for hat/top/outerwear/bottom/shoes/accessories) where each slot renders the selected item's processed (background-removed) image — no actual 3D or skeletal mannequin needed.
+- **Platform (decided 2026-08-31):** Mobile-first responsive **web app**, installable as a PWA. Camera capture is handled via `<input type="file" accept="image/*" capture="environment">`. Stack, architecture, and build order are specified in `PLAN.md`.
+- **Scope (decided 2026-08-31):** Single-user for now. Multi-person/shared closets (suggestion #10) is deferred but designed for — every record carries a user reference from the start.
