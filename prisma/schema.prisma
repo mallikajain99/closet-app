@@ -1,0 +1,326 @@
+// Digital Closet Manager — data model
+// See PLAN.md §2 for the reasoning behind the two load-bearing decisions:
+//   1. WearLogItem rows are ALWAYS written, even for outfit-level logs, so item-level
+//      and outfit-level stats are independent queries (spec §3).
+//   2. Outfits are versioned. Editing carries history forward while each exact item
+//      combination keeps its own signature, satisfying the outfit identity rule (spec §3).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7 moved connection URLs out of the schema. Migration URLs live in
+// prisma.config.ts; the runtime connection is supplied by a driver adapter in lib/db.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Category {
+  TOP
+  BOTTOM
+  DRESS
+  OUTERWEAR
+  SHOE
+  HAT
+  BAG
+  JEWELRY
+  ACCESSORY
+}
+
+/// Where a garment sits in the mannequin composite (spec §2, §6 approach D).
+enum Slot {
+  HEAD
+  TOP
+  OUTER
+  BOTTOM
+  SHOES
+  BAG
+  JEWELRY
+  OTHER
+}
+
+enum ItemStatus {
+  ACTIVE
+  LAUNDRY
+  REPAIR
+  DONATED
+  SOLD
+}
+
+enum Season {
+  SPRING
+  SUMMER
+  FALL
+  WINTER
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+  /// User rejected the processed result and kept the original.
+  OVERRIDDEN
+}
+
+enum ImageSubject {
+  ITEM
+  OOTD
+}
+
+// ---------------------------------------------------------------------------
+// Core
+// ---------------------------------------------------------------------------
+
+/// Mirrors auth.users in Supabase. Single-user for now, but every record is scoped
+/// to a user so multi-profile closets (spec suggestion #10) stay a feature flag
+/// rather than a migration.
+model User {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  /// Days without a wear before an item is flagged as neglected (spec §3).
+  neglectedThresholdDays Int @default(60)
+
+  items    Item[]
+  outfits  Outfit[]
+  tags     Tag[]
+  wearLogs WearLog[]
+
+  @@map("users")
+}
+
+model Item {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  category    Category
+  subcategory String?
+  brand       String?
+  size        String?
+  colors      String[] @default([])
+  seasons     Season[] @default([])
+
+  // Cost-per-wear inputs (spec §4). Price is minor units (cents) to avoid float drift.
+  priceCents   Int?
+  currency     String    @default("USD")
+  purchaseDate DateTime? @db.Date
+  sourceUrl    String?
+
+  /// Descriptive attributes: sleeveLength, silhouette, formality, material, pattern.
+  /// JSON because the set is user-extensible and only ever filtered on, never joined.
+  attributes Json @default("{}")
+
+  status        ItemStatus @default(ACTIVE)
+  conditionNote String?
+  /// Return-window tracker (spec suggestion #9).
+  returnByDate  DateTime?  @db.Date
+
+  // Images: both source and processed are kept (spec §1).
+  originalImageKey  String?
+  processedImageKey String?
+  thumbnailKey      String?
+  processingStatus  ProcessingStatus @default(PENDING)
+
+  // Per-item mannequin adjustment (spec §6 approach D). Applied everywhere the item
+  // appears, so odd pieces are corrected once rather than per outfit.
+  layoutScale   Float?
+  layoutOffsetX Float?
+  layoutOffsetY Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tags         ItemTag[]
+  outfitItems  OutfitItem[]
+  wearLogItems WearLogItem[]
+
+  @@index([userId, category])
+  @@index([userId, brand])
+  @@index([userId, status])
+  @@map("items")
+}
+
+/// One tag vocabulary shared by items and outfits (spec §1).
+model Tag {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  createdAt DateTime @default(now())
+
+  items   ItemTag[]
+  outfits OutfitTag[]
+
+  @@unique([userId, name])
+  @@map("tags")
+}
+
+model ItemTag {
+  itemId String @db.Uuid
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  tagId  String @db.Uuid
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, tagId])
+  @@index([tagId])
+  @@map("item_tags")
+}
+
+// ---------------------------------------------------------------------------
+// Outfits — stable identity + versioned combinations
+// ---------------------------------------------------------------------------
+
+/// The stable, user-facing outfit. Survives edits and owns the full wear history.
+model Outfit {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The version currently shown when the outfit is opened.
+  currentVersionId String?        @unique @db.Uuid
+  currentVersion   OutfitVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+
+  versions OutfitVersion[] @relation("OutfitVersions")
+  tags     OutfitTag[]
+  wearLogs WearLog[]
+
+  @@index([userId])
+  @@map("outfits")
+}
+
+/// One exact combination of items. Editing an outfit creates a new version rather
+/// than mutating this one, so "wears of this exact combination" stays truthful.
+model OutfitVersion {
+  id       String @id @default(uuid()) @db.Uuid
+  outfitId String @db.Uuid
+  outfit   Outfit @relation("OutfitVersions", fields: [outfitId], references: [id], onDelete: Cascade)
+
+  /// SHA-256 of the sorted item IDs. Indexed, NOT unique: two outfits can legitimately
+  /// converge on the same item set through edits, so duplicate detection warns at save
+  /// time rather than being enforced by the database (PLAN.md §2).
+  signature String
+
+  createdAt    DateTime  @default(now())
+  supersededAt DateTime?
+
+  items       OutfitItem[]
+  wearLogs    WearLog[]
+  currentFor  Outfit?      @relation("CurrentVersion")
+
+  @@index([outfitId])
+  @@index([signature])
+  @@map("outfit_versions")
+}
+
+model OutfitItem {
+  id              String        @id @default(uuid()) @db.Uuid
+  outfitVersionId String        @db.Uuid
+  outfitVersion   OutfitVersion @relation(fields: [outfitVersionId], references: [id], onDelete: Cascade)
+  itemId          String        @db.Uuid
+  item            Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  slot  Slot
+  order Int  @default(0)
+
+  @@unique([outfitVersionId, itemId])
+  @@index([itemId])
+  @@map("outfit_items")
+}
+
+model OutfitTag {
+  outfitId String @db.Uuid
+  outfit   Outfit @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  tagId    String @db.Uuid
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([outfitId, tagId])
+  @@index([tagId])
+  @@map("outfit_tags")
+}
+
+// ---------------------------------------------------------------------------
+// Wear tracking
+// ---------------------------------------------------------------------------
+
+model WearLog {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Date only — wears are per-day, and a timestamp would make range queries
+  /// timezone-sensitive for no benefit.
+  wornOn DateTime @db.Date
+
+  // Both are null when loose items are logged outside a saved outfit.
+  outfitId        String?        @db.Uuid
+  outfit          Outfit?        @relation(fields: [outfitId], references: [id], onDelete: SetNull)
+  outfitVersionId String?        @db.Uuid
+  outfitVersion   OutfitVersion? @relation(fields: [outfitVersionId], references: [id], onDelete: SetNull)
+
+  note String?
+
+  // Optional OOTD photo (spec §3, §6 approach A) — runs through the same pipeline as items.
+  ootdOriginalImageKey  String?
+  ootdProcessedImageKey String?
+  ootdProcessingStatus  ProcessingStatus?
+
+  createdAt DateTime @default(now())
+
+  items WearLogItem[]
+
+  @@index([userId, wornOn])
+  @@index([outfitId])
+  @@index([outfitVersionId])
+  @@map("wear_logs")
+}
+
+/// ALWAYS written — logging an outfit fans out one row per item in it. This is what
+/// keeps item-level and outfit-level stats "completely separate" (spec §3) without
+/// having to traverse outfit versions to count item wears.
+model WearLogItem {
+  wearLogId String  @db.Uuid
+  wearLog   WearLog @relation(fields: [wearLogId], references: [id], onDelete: Cascade)
+  itemId    String  @db.Uuid
+  item      Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([wearLogId, itemId])
+  @@index([itemId])
+  @@map("wear_log_items")
+}
+
+// ---------------------------------------------------------------------------
+// Image pipeline
+// ---------------------------------------------------------------------------
+
+/// Polymorphic over items and OOTD photos — both run the same segment → normalize
+/// pipeline, differing only in target dimensions (PLAN.md §1.1).
+model ImageJob {
+  id          String       @id @default(uuid()) @db.Uuid
+  subjectType ImageSubject
+  subjectId   String       @db.Uuid
+
+  status   ProcessingStatus @default(PENDING)
+  step     String?
+  error    String?
+  attempts Int              @default(0)
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([subjectType, subjectId])
+  @@index([status])
+  @@map("image_jobs")
+}

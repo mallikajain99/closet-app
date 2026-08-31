@@ -1,6 +1,6 @@
 # Digital Closet Manager — Implementation Plan
 
-**Status:** Ready to begin Phase 0. One open item (decision 5, mannequin asset sourcing) is cosmetic and gated to Phase 2.5
+**Status:** Phase 0 scaffolded locally; awaiting Supabase credentials to run the first migration. One open item (decision 5, mannequin asset sourcing) is cosmetic and gated to Phase 2.5
 **Last updated:** 2026-08-31
 **Companion doc:** [closet_app_feature_spec.md](./closet_app_feature_spec.md)
 
@@ -40,6 +40,13 @@ This argues for a **thin theme layer over shadcn/ui** — shadcn's defaults are 
 border-heavy, so the token set (surface colors, radius, shadow → mostly none) should be
 customized up front in Phase 0 rather than retrofitted.
 
+**Implemented in Phase 0** as Tailwind v4 `@theme` tokens in `app/globals.css`. Tailwind v4 is
+CSS-first — there is no `tailwind.config.ts`. Tokens are grouped as surfaces (`canvas`,
+`surface`, `surface-sunken`), ink (`ink`, `ink-muted`, `ink-subtle`), hairlines (`line`), and
+**signal** colors (`signal-neglected`, `signal-value`, `signal-laundry`, `signal-danger`) — the
+only saturated values in the system. Shadow utilities are deliberately unused; depth comes from
+the garment images and the mannequin composite's contact shadows.
+
 ---
 
 ## 1. Tech Stack
@@ -48,12 +55,12 @@ customized up front in Phase 0 rather than retrofitted.
 
 | Layer | Choice | Why |
 |---|---|---|
-| Frontend | Next.js 15 (App Router) + TypeScript + Tailwind + shadcn/ui | Mobile-first responsive, PWA-installable |
+| Frontend | Next.js 16 (App Router) + TypeScript + Tailwind v4 + shadcn/ui | Mobile-first responsive, PWA-installable |
 | Carousels / layout | Embla Carousel; CSS Grid + absolutely-positioned slots | Spec confirms no 3D mannequin needed — fixed CSS slots suffice |
 | Client data | TanStack Query + React Server Components for initial loads | Wear stats change constantly and need invalidation across catalog / detail / dashboard |
 | Backend | Next.js Route Handlers + Server Actions (same repo) | App is CRUD + aggregation + one async pipeline; a separate service is unnecessary overhead |
 | Background jobs | Inngest | Background removal takes 5–30s and cannot run inline in a request. Retries, step functions, dashboard, free tier, runs on Vercel |
-| Database | Postgres (Supabase) + Prisma | Relational data with heavy joins and date-range aggregation; arrays/JSONB cover colors and attribute tags |
+| Database | Postgres (Supabase) + Prisma 7 | Relational data with heavy joins and date-range aggregation; arrays/JSONB cover colors and attribute tags |
 | Image storage | Supabase Storage (S3-compatible), private buckets + signed URLs | Bundled with DB and auth. Cloudflare R2 is the swap-in if outgrown |
 | Image processing | Replicate (hosted models) + `sharp` (normalization) | See pipeline below |
 | Auth | Supabase Auth, single user to start | Every table carries `user_id` from day 1, so shared closets become a feature flag, not a migration |
@@ -248,6 +255,7 @@ closet-app/
 │   └── validation/           (zod schemas, shared client + server)
 ├── jobs/                     process-item-image.ts
 ├── prisma/                   schema.prisma · migrations/
+├── prisma.config.ts          connection URLs for migrations (Prisma 7 moved these out of the schema)
 └── tests/
 ```
 
@@ -264,7 +272,7 @@ shape the later phases.
 
 | Phase | Scope | Done when |
 |---|---|---|
-| **0 — Foundation** | Next.js + Tailwind + shadcn scaffold, **theme tokens per the Design Direction** (neutral surfaces, no shadows, type scale), Supabase project, Prisma schema (all entities), auth, deploy to Vercel | Empty app is live and login works |
+| **0 — Foundation** ✅ *local scaffold done* | Next.js + Tailwind + theme tokens, full Prisma schema, Supabase client helpers, pure-function core (`signature`, `cost-per-wear`, `neglected`). Remaining: Supabase project + first migration + auth UI + Vercel deploy (see `SETUP.md`) | Empty app is live and login works |
 | **1 — Catalog (raw)** | Photo/screenshot upload → storage, item metadata form, tags, grid view, edit/delete, **hanger/dress-form photography guidance in the capture flow**. **No image processing yet** | Real closet can be loaded in, unprocessed |
 | **2 — Image pipeline** | Inngest job, segmentation, per-category normalization, pending/failed UI states, manual override, backfill of Phase-1 items | Catalog looks visually uniform |
 | **2.5 — Mannequin calibration** | Time-boxed ~1 day. Source or commission the neutral mannequin asset; composite ~10 real garments over it; tune per-category anchor boxes and shadow treatment until a full outfit reads correctly | The outfit visual is proven on real garments before the builder is built around it |
@@ -305,4 +313,5 @@ Decision 5 is cosmetic and does not block Phases 0–2.
 | 2026-08-31 | Open decisions 1–3 resolved. Outfit editing = edit-in-place carrying history; data model gains `OutfitVersion` and `WearLog.outfitVersionId` to keep exact-combination stats accurate. Supabase confirmed; single-user confirmed. Spec §2 and §3 updated to match. |
 | 2026-08-31 | Design direction added (Everlane/COS/Indyx references) → new spec §5, new plan Design Direction section, theme tokens added to Phase 0. On-body rendering evaluated → new spec §6, new plan §1.2; option A (OOTD photo capture) added to Phase 5 and spec §3, option B deferred to Phase 7 pending decision 4, option C ruled out. `WearLog` gains OOTD image fields; `ImageJob` made polymorphic. |
 | 2026-08-31 | **Correction + scope change.** The travel-app reference is composited/rendered, not mirror selfies — the two reference screenshots showed different techniques and had been conflated. Goal restated as "me in varied poses per outfit, without photographing each outfit," which is option B. B promoted from deferred Phase 7 experiment to **primary direction**; A demoted to manual override/fallback. Added pose library (`UserPhoto`), render cache (`OutfitRender`), deterministic pose assignment, and a **Phase 2.5 quality spike** gating the Phase 4 builder design. Spec §6 rewritten. |
+| 2026-08-31 | **Phase 0 scaffolded locally.** Actual toolchain versions differ from what this plan originally specified and are corrected above: **Next.js 16.3** (not 15 — Turbopack is now the default, request APIs are async-only, `middleware` is renamed `proxy`), **Tailwind v4** (CSS-first `@theme`, no `tailwind.config.ts`), **Prisma 7** (connection URLs moved from `schema.prisma` to a new `prisma.config.ts`; the client now requires a driver adapter, `@prisma/adapter-pg`). Node 26.8.1 installed via Homebrew. Note `npm i -D prisma` resolves to an 8.0 release candidate with an entirely different CLI — the dependency is pinned to `prisma@7` to match `@prisma/client`. |
 | 2026-08-31 | **Direction settled: garment fidelity outranks on-body realism.** New approach **D** (mannequin-backed layered composite) becomes the primary outfit visual — real garment cutouts layered over a neutral static mannequin figure with per-category anchors, contact shadows, and per-item scale/offset overrides. **B dropped** (generative = garment drift); `UserPhoto` and `OutfitRender` removed from the data model; `Item` gains `layoutScale`/`layoutOffset`. Phase 2.5 repurposed from try-on spike to mannequin calibration. Hanger/dress-form photography guidance added to spec §1 and Phase 1 — intake quality drives outfit-view quality more than the renderer does. Spec §1, §2, §6 updated. |

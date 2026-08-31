@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — see PLAN.md "Design Direction" and spec §5.
+ *
+ * Principle: clean and simple, let the clothes shine. The interface is a quiet gallery
+ * for the garments. Warm neutral surfaces, no shadows or card borders, separation via
+ * whitespace. Color is reserved for signal (neglected, cost-per-wear, laundry) so those
+ * few elements read instantly against an otherwise neutral field.
+ */
+
+@theme {
+  /* --- Surfaces: warm off-white, never pure white --- */
+  --color-canvas: #faf9f7;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f2f0ec;
+
+  /* --- Ink --- */
+  --color-ink: #1c1b19;
+  --color-ink-muted: #6b6862;
+  --color-ink-subtle: #9a968e;
+
+  /* --- Hairlines: used sparingly, never as card borders --- */
+  --color-line: #e5e2dc;
+  --color-line-strong: #d4d0c8;
+
+  /* --- Signal colors. The only saturated values in the system. --- */
+  /* Not worn in N days */
+  --color-signal-neglected: #b45309;
+  --color-signal-neglected-soft: #fef3e2;
+  /* Good cost-per-wear */
+  --color-signal-value: #3f6212;
+  --color-signal-value-soft: #f1f7e8;
+  /* In the wash / unavailable */
+  --color-signal-laundry: #1d4ed8;
+  --color-signal-laundry-soft: #eef2ff;
+  /* Destructive */
+  --color-signal-danger: #9f1239;
+
+  /* --- Type: one light grotesque, generous leading --- */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* Small uppercase letter-spaced labels for nav and metadata */
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1rem;
+  --text-label--letter-spacing: 0.12em;
+  --text-label--font-weight: 500;
+
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.25rem;
+
+  /* --- Radius: near-square. Soft corners read as "app chrome". --- */
+  --radius-none: 0px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+
+  /*
+   * Shadows are deliberately absent. Depth in this UI comes from the garment images
+   * themselves and from the contact shadows inside the mannequin composite — not from
+   * elevated surfaces. Tailwind's shadow-* utilities should not appear in app code.
+   */
+}
+
+@layer base {
+  html {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Consistent, quiet focus treatment. Visible for keyboard users, absent for mouse. */
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+}
+
+@utility label {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  letter-spacing: var(--text-label--letter-spacing);
+  font-weight: var(--text-label--font-weight);
+  text-transform: uppercase;
+}
