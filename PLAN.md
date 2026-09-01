@@ -203,6 +203,10 @@ The three rules live in `lib/stats/` and `lib/outfits/` as pure functions (spec 
 Backdated wears feed all of these identically to same-day logs — which is the mechanism that keeps
 rarely-worn occasion pieces off the neglected list.
 
+All four are covered by Vitest (`npm test`), including regression tests for the rejected formulas —
+outfit cost-per-wear as total ÷ outfit wears, and month windows as rolling rather than calendar.
+These rules have already been corrected once; the tests exist so they cannot drift back silently.
+
 ### Resolved — outfit editing carries history (versioned outfits)
 
 **Decision (2026-08-31): edit in place and carry wear history forward.** An outfit is a
@@ -268,7 +272,7 @@ closet-app/
 ├── jobs/                     process-item-image.ts
 ├── prisma/                   schema.prisma · migrations/
 ├── prisma.config.ts          connection URLs for migrations (Prisma 7 moved these out of the schema)
-└── tests/
+└── tests/                    Vitest — mirrors lib/, covers the pure rule functions
 ```
 
 `lib/` holds all business logic as pure functions with no framework imports — so

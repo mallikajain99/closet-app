@@ -24,6 +24,11 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000).
 
+```bash
+npm test          # run the suite once
+npm run test:watch
+```
+
 ## Layout
 
 ```
@@ -37,9 +42,9 @@ lib/          business logic — framework-free and unit-testable
 prisma/       schema.prisma, migrations
 ```
 
-`lib/` holds no framework imports on purpose: the outfit-identity, cost-per-wear, and neglected
-rules are the logic most likely to be subtly wrong, so they're testable without a database or a
-browser.
+`lib/` holds no framework imports on purpose: the outfit-identity, cost-per-wear, neglected, and
+wear-window rules are the logic most likely to be subtly wrong, so they're testable without a
+database or a browser. `tests/` mirrors that structure.
 
 ## Notes
 
