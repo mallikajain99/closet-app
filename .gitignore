@@ -36,6 +36,9 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 
+# Claude Code — personal permission overrides, not team settings
+.claude/settings.local.json
+
 # Vercel
 .vercel
 
