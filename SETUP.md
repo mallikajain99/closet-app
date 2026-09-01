@@ -46,7 +46,11 @@ correctly behind PgBouncer.
 
 Go to **Project Settings → API** and copy three values:
 
-- **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+- **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`. Use the **bare origin only** —
+  `https://<project-ref>.supabase.co`, with no path and no trailing slash. The API settings
+  page lists the REST endpoint (`.../rest/v1/`) alongside it and it's easy to grab by
+  mistake; the client library appends every path itself, so a path here produces
+  `Invalid path specified in request URL` at sign-in
 - **`anon` / publishable key** → `NEXT_PUBLIC_SUPABASE_ANON_KEY` (safe in the browser)
 - **`service_role` / secret key** → `SUPABASE_SERVICE_ROLE_KEY`
 
