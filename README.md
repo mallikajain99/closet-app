@@ -54,3 +54,6 @@ database or a browser. `tests/` mirrors that structure.
   release candidate with a different CLI.
 - **Tailwind v4** is CSS-first — design tokens live in `app/globals.css` under `@theme`, and there
   is no `tailwind.config.ts`.
+- **`postinstall: prisma generate`** is required for deploys. Vercel caches `node_modules`, so
+  without it the generated Prisma client goes stale or missing and the build fails on a cache hit
+  rather than on the first deploy — which makes it look intermittent.
