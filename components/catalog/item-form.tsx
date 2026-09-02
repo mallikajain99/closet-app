@@ -1,7 +1,7 @@
 "use client";
 
 import { Category, ItemStatus, Season } from "@prisma/client";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { PhotoInput } from "@/components/catalog/photo-input";
 import { TagInput } from "@/components/catalog/tag-input";
@@ -46,6 +46,22 @@ function dateValue(date?: Date | null) {
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
+/** Error keys come from the schema; a few don't match the input id they belong to. */
+const FIELD_IDS: Record<string, string> = {
+  priceCents: "price",
+  tagNames: "colors",
+};
+
+/** Human labels for the error summary, so it reads as prose rather than field names. */
+const FIELD_LABELS: Record<string, string> = {
+  name: "Name",
+  category: "Category",
+  priceCents: "Purchase price",
+  sourceUrl: "Where from",
+  purchaseDate: "Purchase date",
+  returnByDate: "Return by",
+};
+
 export function ItemForm({
   action,
   values = {},
@@ -62,27 +78,68 @@ export function ItemForm({
   const [result, formAction, pending] = useActionState(action, null);
   const errors = result?.ok === false ? (result.fieldErrors ?? {}) : {};
   const attributes = values.attributes ?? {};
+  const summaryRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Move to the problem after a rejected submit.
+   *
+   * The submit button sits below a long form, so on a phone the offending field is
+   * usually scrolled well off screen — without this the tap reads as "nothing happened".
+   */
+  useEffect(() => {
+    if (result?.ok !== false) return;
+
+    const firstKey = Object.keys(result.fieldErrors ?? {})[0];
+    const target = firstKey ? document.getElementById(FIELD_IDS[firstKey] ?? firstKey) : null;
+
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus({ preventScroll: true });
+    } else {
+      summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [result]);
 
   return (
-    <form action={formAction} className="grid gap-10 lg:grid-cols-[320px_1fr]">
+    <form
+      action={formAction}
+      // Our own validation is the single source of truth. With native validation on, the
+      // browser silently blocks submission, the action never runs, and the server's
+      // error messages never come back — which on mobile looks like a dead button.
+      noValidate
+      className="grid gap-10 lg:grid-cols-[320px_1fr]"
+    >
       <div className="lg:sticky lg:top-8 lg:self-start">
         <PhotoInput initialKey={values.originalImageKey} initialUrl={imageUrl} />
       </div>
 
       <div className="grid gap-8">
         <Fieldset legend="The basics">
-          <Field label="Name" htmlFor="name" error={errors.name?.[0]} className="sm:col-span-2">
+          <Field
+            label="Name"
+            htmlFor="name"
+            error={errors.name?.[0]}
+            required
+            className="sm:col-span-2"
+          >
             <Input
               id="name"
               name="name"
               required
+              aria-invalid={Boolean(errors.name)}
               defaultValue={values.name ?? ""}
               placeholder="Black silk slip dress"
             />
           </Field>
 
-          <Field label="Category" htmlFor="category" error={errors.category?.[0]}>
-            <Select id="category" name="category" defaultValue={values.category ?? ""} required>
+          <Field label="Category" htmlFor="category" error={errors.category?.[0]} required>
+            <Select
+              id="category"
+              name="category"
+              defaultValue={values.category ?? ""}
+              required
+              aria-invalid={Boolean(errors.category)}
+            >
               <option value="" disabled>
                 Choose one
               </option>
@@ -241,7 +298,35 @@ export function ItemForm({
         </Fieldset>
 
         {result?.ok === false && (
-          <p className="text-meta text-signal-danger">{result.message}</p>
+          <div
+            ref={summaryRef}
+            role="alert"
+            tabIndex={-1}
+            className="border-l-2 border-signal-danger bg-surface-sunken py-3 pl-4"
+          >
+            <p className="text-ink">{result.message}</p>
+            {Object.entries(result.fieldErrors ?? {}).length > 0 && (
+              <ul className="mt-2 grid gap-1">
+                {Object.entries(result.fieldErrors ?? {}).map(([field, messages]) => (
+                  <li key={field} className="text-meta text-ink-muted">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById(FIELD_IDS[field] ?? field);
+                        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                        el?.focus({ preventScroll: true });
+                      }}
+                      className="underline underline-offset-4 hover:text-ink"
+                    >
+                      {FIELD_LABELS[field] ?? field}
+                    </button>
+                    {" — "}
+                    {messages?.[0]}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         <div className="flex items-center gap-6 border-t border-line pt-6">

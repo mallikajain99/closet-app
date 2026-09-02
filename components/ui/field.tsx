@@ -10,6 +10,7 @@ export function Field({
   htmlFor,
   error,
   hint,
+  required,
   className,
   children,
 }: {
@@ -17,6 +18,7 @@ export function Field({
   htmlFor?: string;
   error?: string;
   hint?: string;
+  required?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -24,10 +26,20 @@ export function Field({
     <div className={cn("flex flex-col", className)}>
       <label htmlFor={htmlFor} className="label text-ink-subtle">
         {label}
+        {required && (
+          <span className="ml-1 text-signal-danger" aria-hidden="true">
+            *
+          </span>
+        )}
+        {required && <span className="sr-only"> (required)</span>}
       </label>
       {children}
       {hint && !error && <p className="mt-1 text-meta text-ink-subtle">{hint}</p>}
-      {error && <p className="mt-1 text-meta text-signal-danger">{error}</p>}
+      {error && (
+        <p className="mt-1 text-meta text-signal-danger" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
