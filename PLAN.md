@@ -1,6 +1,6 @@
 # Digital Closet Manager — Implementation Plan
 
-**Status:** Phase 0 complete and running locally — database migrated, auth working. Vercel deploy and Phase 1 are next. One open item (decision 5, mannequin asset sourcing) is cosmetic and gated to Phase 2.5
+**Status:** Phases 0 and 1 complete and deployed. Adding items works end to end from a phone. Phase 2 (image pipeline) is next and needs a Replicate token. One open item (decision 5, mannequin asset sourcing) is cosmetic and gated to Phase 2.5
 **Last updated:** 2026-08-31
 **Companion doc:** [closet_app_feature_spec.md](./closet_app_feature_spec.md)
 
@@ -289,7 +289,7 @@ shape the later phases.
 | Phase | Scope | Done when |
 |---|---|---|
 | **0 — Foundation** ✅ **done** *(deploy pending)* | Next.js + Tailwind + theme tokens, full Prisma schema migrated to Supabase (11 tables, 6 enums), storage buckets, magic-link auth via `proxy.ts` + `lib/auth.ts`, pure-function core with 51 tests. Remaining: Vercel deploy (see `SETUP.md` Part 3) | ✅ App is live locally and login works |
-| **1 — Catalog (raw)** | Photo/screenshot upload → storage, item metadata form, tags, grid view, edit/delete, **hanger/dress-form photography guidance in the capture flow**. **No image processing yet** | Real closet can be loaded in, unprocessed |
+| **1 — Catalog (raw)** ✅ **done** | Photo/screenshot upload → storage, item metadata form, tags, grid view, detail, edit/delete, hanger/dress-form guidance in the capture flow. **No image processing yet** | ✅ Live in production; real closet can be loaded in from a phone |
 | **2 — Image pipeline** | Inngest job, segmentation, per-category normalization, pending/failed UI states, manual override, backfill of Phase-1 items | Catalog looks visually uniform |
 | **2.5 — Mannequin calibration** | Time-boxed ~1 day. Source or commission the neutral mannequin asset; composite ~10 real garments over it; tune per-category anchor boxes and shadow treatment until a full outfit reads correctly | The outfit visual is proven on real garments before the builder is built around it |
 | **3 — Browse & item detail** | Filters (category / color / brand / formality / sleeve), search, brand jump-through, item detail page *minus* wear stats | Catalog is genuinely navigable at ~100 items |
