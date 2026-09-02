@@ -16,7 +16,19 @@ A personal wardrobe management app that catalogs clothing/shoes, lets the user b
   sticker when composited into the outfit view; a hung or formed garment retains shoulders, drape,
   and interior shadow and composites convincingly. Cutouts taken from retailer model shots are
   similarly good source material. The app should surface this as guidance in the capture flow, not
-  enforce it
+  enforce it. Rough ranking of source quality:
+  **dress form / hanger › retailer model shot › self-worn photo › flat-lay**
+- **Self-worn photos as item sources:** usable, and better than a flat-lay because the drape is
+  real, but they make the person-removal step harder and can fail in ways that persist forever in
+  the outfit view. Guidance to surface when the user picks this route: arms away from the body,
+  the garment untucked and fully visible, one layer at a time (not shot under a jacket), plain
+  background, straight on. Failure modes to expect otherwise — crossed arms and loose hair leave
+  holes or attached skin in the cutout; a tucked hem simply isn't in the photo, so the garment
+  renders permanently cropped; a bent arm yields a bent sleeve.
+- **A worn *outfit* photo is not an item source.** Individual garments cannot be reliably separated
+  out of it — each piece is partly occluded by the others. Full-outfit photos belong to wear
+  logging instead (Feature 3, and §6 approach A), where they are kept whole as the record of a
+  day's wear.
 - **Automatic image processing pipeline (runs on every submitted item):**
   - Remove background from the photo
   - If the source is a model/lifestyle photo, isolate and remove the person, keeping only the garment
