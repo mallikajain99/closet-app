@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createSignedUpload, deleteImage } from "@/lib/images/storage";
-import { buildAttributes, itemInputSchema } from "@/lib/validation/item";
+import { canonicalize, normalizeSize } from "@/lib/text";
+import { buildAttributes, itemInputSchema, type ItemInput } from "@/lib/validation/item";
 
 export type ActionResult =
   | { ok: true }
@@ -50,10 +51,57 @@ function parseItemForm(formData: FormData) {
     formality: formData.get("formality") ?? undefined,
     material: formData.get("material") ?? undefined,
     pattern: formData.get("pattern") ?? undefined,
-    silhouette: formData.get("silhouette") ?? undefined,
+    silhouette: multi(formData, "silhouette"),
     tagNames: multi(formData, "tags"),
     originalImageKey: formData.get("originalImageKey") ?? undefined,
   });
+}
+
+/**
+ * Snap free-text fields onto spellings the user has already used.
+ *
+ * Without this, "Everlane", "everlane", and "EVERLANE" become three distinct brands, and
+ * the brand filter splits one label across three rows. Existing spellings win rather than
+ * any casing rule, because brand capitalisation is idiosyncratic — COS, ba&sh, lululemon
+ * would all be mangled by title-casing. See lib/text.ts.
+ */
+async function canonicalizeFields(userId: string, input: ItemInput) {
+  const [brands, sizes, subcategories, materials, patterns] = await Promise.all(
+    (["brand", "size", "subcategory", "material", "pattern"] as const).map(
+      async (field) => {
+        // `material` and `pattern` live inside the attributes JSON, not their own column.
+        if (field === "material" || field === "pattern") {
+          const rows = await db.item.findMany({
+            where: { userId },
+            select: { attributes: true },
+          });
+          const seen = new Set<string>();
+          for (const row of rows) {
+            const value = (row.attributes as Record<string, unknown>)?.[field];
+            if (typeof value === "string" && value) seen.add(value);
+          }
+          return [...seen];
+        }
+
+        const rows = await db.item.findMany({
+          where: { userId, NOT: { [field]: null } },
+          select: { [field]: true },
+          distinct: [field],
+        });
+        return rows
+          .map((row) => (row as Record<string, unknown>)[field])
+          .filter((value): value is string => typeof value === "string");
+      },
+    ),
+  );
+
+  return {
+    brand: canonicalize(input.brand, brands),
+    size: normalizeSize(input.size, sizes),
+    subcategory: canonicalize(input.subcategory, subcategories),
+    material: canonicalize(input.material, materials),
+    pattern: canonicalize(input.pattern, patterns),
+  };
 }
 
 /**
@@ -92,16 +140,19 @@ export async function createItem(
   }
 
   const input = parsed.data;
-  const tags = await connectTags(user.id, input.tagNames);
+  const [tags, canonical] = await Promise.all([
+    connectTags(user.id, input.tagNames),
+    canonicalizeFields(user.id, input),
+  ]);
 
   await db.item.create({
     data: {
       userId: user.id,
       name: input.name,
       category: input.category,
-      subcategory: input.subcategory,
-      brand: input.brand,
-      size: input.size,
+      subcategory: canonical.subcategory,
+      brand: canonical.brand,
+      size: canonical.size,
       colors: input.colors,
       seasons: input.seasons,
       priceCents: input.priceCents,
@@ -110,7 +161,7 @@ export async function createItem(
       status: input.status,
       conditionNote: input.conditionNote,
       returnByDate: input.returnByDate,
-      attributes: buildAttributes(input),
+      attributes: buildAttributes(input, canonical),
       originalImageKey: input.originalImageKey,
       // Phase 2 replaces this with a real pipeline run. Until then the source image is
       // shown as-is, so the item is usable rather than stuck pending forever.
@@ -148,7 +199,10 @@ export async function updateItem(
   if (!existing) return { ok: false, message: "That item no longer exists." };
 
   const input = parsed.data;
-  const tags = await connectTags(user.id, input.tagNames);
+  const [tags, canonical] = await Promise.all([
+    connectTags(user.id, input.tagNames),
+    canonicalizeFields(user.id, input),
+  ]);
   const imageChanged =
     input.originalImageKey && input.originalImageKey !== existing.originalImageKey;
 
@@ -157,9 +211,9 @@ export async function updateItem(
     data: {
       name: input.name,
       category: input.category,
-      subcategory: input.subcategory,
-      brand: input.brand,
-      size: input.size,
+      subcategory: canonical.subcategory,
+      brand: canonical.brand,
+      size: canonical.size,
       colors: input.colors,
       seasons: input.seasons,
       priceCents: input.priceCents,
@@ -168,7 +222,7 @@ export async function updateItem(
       status: input.status,
       conditionNote: input.conditionNote,
       returnByDate: input.returnByDate,
-      attributes: buildAttributes(input),
+      attributes: buildAttributes(input, canonical),
       ...(imageChanged
         ? { originalImageKey: input.originalImageKey, processingStatus: "PENDING" as const }
         : {}),

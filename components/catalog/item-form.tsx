@@ -4,7 +4,7 @@ import { Category, ItemStatus, Season } from "@prisma/client";
 import { useActionState, useEffect, useRef, useState } from "react";
 
 import { PhotoInput } from "@/components/catalog/photo-input";
-import { TagInput } from "@/components/catalog/tag-input";
+import { ChipListInput } from "@/components/ui/chip-list-input";
 import {
   ChipToggle,
   Field,
@@ -38,6 +38,7 @@ export type ItemFormValues = {
   conditionNote?: string | null;
   returnByDate?: Date | null;
   attributes?: Record<string, string>;
+  silhouette?: string[];
   tagNames?: string[];
   originalImageKey?: string | null;
 };
@@ -68,12 +69,14 @@ export function ItemForm({
   imageUrl,
   submitLabel,
   allTags,
+  silhouetteSuggestions,
 }: {
   action: (prev: ActionResult | null, formData: FormData) => Promise<ActionResult>;
   values?: ItemFormValues;
   imageUrl?: string | null;
   submitLabel: string;
   allTags: string[];
+  silhouetteSuggestions: string[];
 }) {
   const [result, formAction, pending] = useActionState(action, null);
   const errors = result?.ok === false ? (result.fieldErrors ?? {}) : {};
@@ -252,9 +255,19 @@ export function ItemForm({
             <Input id="pattern" name="pattern" defaultValue={attributes.pattern ?? ""} />
           </Field>
 
-          <Field label="Silhouette" htmlFor="silhouette">
-            <Input id="silhouette" name="silhouette" defaultValue={attributes.silhouette ?? ""} />
-          </Field>
+          <div className="sm:col-span-2">
+            <p className="label text-ink-subtle">Silhouette</p>
+            <p className="mb-2 mt-1 text-meta text-ink-subtle">
+              A piece can be several at once — cropped and boxy.
+            </p>
+            <ChipListInput
+              name="silhouette"
+              label="Add a silhouette"
+              placeholder="cropped, oversized…"
+              defaultValue={values.silhouette ?? []}
+              suggestions={silhouetteSuggestions}
+            />
+          </div>
 
           <div className="sm:col-span-2">
             <p className="label text-ink-subtle">Season</p>
@@ -277,7 +290,13 @@ export function ItemForm({
           description="The same tags label outfits, so an item shows which occasions it belongs to."
         >
           <div className="sm:col-span-2">
-            <TagInput defaultValue={values.tagNames ?? []} suggestions={allTags} />
+            <ChipListInput
+              name="tags"
+              label="Add a tag"
+              placeholder="Work, date night, gym…"
+              defaultValue={values.tagNames ?? []}
+              suggestions={allTags}
+            />
           </div>
         </Fieldset>
 

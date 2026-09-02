@@ -4,17 +4,21 @@ import { createItem } from "@/app/(app)/catalog/actions";
 import { ItemForm } from "@/components/catalog/item-form";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getSilhouetteSuggestions } from "@/lib/items/suggestions";
 
 export const metadata = { title: "Add an item" };
 
 export default async function NewItemPage() {
   const user = await requireUser();
 
-  const tags = await db.tag.findMany({
-    where: { userId: user.id },
-    orderBy: { name: "asc" },
-    select: { name: true },
-  });
+  const [tags, silhouetteSuggestions] = await Promise.all([
+    db.tag.findMany({
+      where: { userId: user.id },
+      orderBy: { name: "asc" },
+      select: { name: true },
+    }),
+    getSilhouetteSuggestions(user.id),
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-12">
@@ -30,6 +34,7 @@ export default async function NewItemPage() {
           action={createItem}
           submitLabel="Save item"
           allTags={tags.map((tag) => tag.name)}
+          silhouetteSuggestions={silhouetteSuggestions}
         />
       </div>
     </main>

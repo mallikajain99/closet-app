@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getSignedImageUrl } from "@/lib/images/storage";
 import { costPerWearCents, formatCents } from "@/lib/stats/cost-per-wear";
-import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/validation/item";
+import { CATEGORY_LABELS, STATUS_LABELS, readSilhouette } from "@/lib/validation/item";
 
 export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]">) {
   const { itemId } = await props.params;
@@ -41,7 +41,7 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
     { label: "Formality", value: attributes.formality },
     { label: "Material", value: attributes.material },
     { label: "Pattern", value: attributes.pattern },
-    { label: "Silhouette", value: attributes.silhouette },
+    { label: "Silhouette", value: readSilhouette(item.attributes).join(", ") || null },
     {
       label: "Seasons",
       value: item.seasons.length ? item.seasons.join(", ").toLowerCase() : null,

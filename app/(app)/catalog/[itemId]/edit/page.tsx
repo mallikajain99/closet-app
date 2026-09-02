@@ -6,6 +6,8 @@ import { ItemForm } from "@/components/catalog/item-form";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getSignedImageUrl } from "@/lib/images/storage";
+import { getSilhouetteSuggestions } from "@/lib/items/suggestions";
+import { readSilhouette } from "@/lib/validation/item";
 
 export const metadata = { title: "Edit item" };
 
@@ -15,7 +17,7 @@ export default async function EditItemPage(
   const { itemId } = await props.params;
   const user = await requireUser();
 
-  const [item, tags] = await Promise.all([
+  const [item, tags, silhouetteSuggestions] = await Promise.all([
     db.item.findFirst({
       where: { id: itemId, userId: user.id },
       include: { tags: { include: { tag: true } } },
@@ -25,6 +27,7 @@ export default async function EditItemPage(
       orderBy: { name: "asc" },
       select: { name: true },
     }),
+    getSilhouetteSuggestions(user.id),
   ]);
 
   if (!item) notFound();
@@ -48,6 +51,7 @@ export default async function EditItemPage(
           action={action}
           submitLabel="Save changes"
           allTags={tags.map((tag) => tag.name)}
+          silhouetteSuggestions={silhouetteSuggestions}
           imageUrl={imageUrl}
           values={{
             id: item.id,
@@ -65,6 +69,7 @@ export default async function EditItemPage(
             conditionNote: item.conditionNote,
             returnByDate: item.returnByDate,
             attributes: (item.attributes ?? {}) as Record<string, string>,
+            silhouette: readSilhouette(item.attributes),
             tagNames: item.tags.map((link) => link.tag.name),
             originalImageKey: item.originalImageKey,
           }}

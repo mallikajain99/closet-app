@@ -12,6 +12,27 @@ export const SLEEVE_LENGTHS = [
 
 export const FORMALITIES = ["casual", "simple", "smart", "dressy", "formal"] as const;
 
+/**
+ * Starter silhouette vocabulary. A garment often has several ("cropped" + "boxy"), so
+ * this is a multi-value field rather than a single choice — and the list is open, seeded
+ * here and extended by whatever the user types.
+ */
+export const SILHOUETTES = [
+  "fitted",
+  "relaxed",
+  "oversized",
+  "boxy",
+  "cropped",
+  "longline",
+  "a-line",
+  "straight",
+  "wide-leg",
+  "slim",
+  "flared",
+  "wrap",
+  "tailored",
+] as const;
+
 /** Category → the slot it occupies in the outfit composite (spec §2). */
 export const CATEGORY_LABELS: Record<Category, string> = {
   TOP: "Top",
@@ -132,7 +153,7 @@ export const itemInputSchema = z.object({
   formality: optionalText,
   material: optionalText,
   pattern: optionalText,
-  silhouette: optionalText,
+  silhouette: z.array(z.string().trim().min(1).max(60)).max(10).default([]),
   tagNames: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
   originalImageKey: z.string().trim().min(1).optional(),
 });
@@ -140,19 +161,32 @@ export const itemInputSchema = z.object({
 export type ItemInput = z.infer<typeof itemInputSchema>;
 
 /** Collapse the loose attribute fields into the JSON column, dropping empties. */
-export function buildAttributes(input: ItemInput) {
-  const attributes: Record<string, string> = {};
-  const fields = {
+export function buildAttributes(
+  input: ItemInput,
+  overrides: Partial<Record<"material" | "pattern", string | undefined>> = {},
+) {
+  const attributes: Record<string, string | string[]> = {};
+  const single = {
     sleeveLength: input.sleeveLength,
     formality: input.formality,
-    material: input.material,
-    pattern: input.pattern,
-    silhouette: input.silhouette,
+    material: overrides.material ?? input.material,
+    pattern: overrides.pattern ?? input.pattern,
   };
 
-  for (const [key, value] of Object.entries(fields)) {
+  for (const [key, value] of Object.entries(single)) {
     if (value) attributes[key] = value;
   }
 
+  if (input.silhouette.length > 0) attributes.silhouette = input.silhouette;
+
   return attributes;
+}
+
+/** Attributes come back from JSON untyped; silhouette is the one array among them. */
+export function readSilhouette(attributes: unknown): string[] {
+  if (!attributes || typeof attributes !== "object") return [];
+  const value = (attributes as Record<string, unknown>).silhouette;
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
+  // Tolerate rows written before silhouette became multi-value.
+  return typeof value === "string" && value ? [value] : [];
 }
