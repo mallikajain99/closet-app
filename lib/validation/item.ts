@@ -25,6 +25,34 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   ACCESSORY: "Accessory",
 };
 
+/**
+ * Plural labels for the catalog filter row, in body order rather than alphabetical —
+ * scanning head-to-toe matches how you picture an outfit.
+ */
+export const CATEGORY_PLURAL: Record<Category, string> = {
+  TOP: "Tops",
+  BOTTOM: "Bottoms",
+  DRESS: "Dresses",
+  OUTERWEAR: "Outerwear",
+  SHOE: "Shoes",
+  HAT: "Hats",
+  BAG: "Bags",
+  JEWELRY: "Jewelry",
+  ACCESSORY: "Accessories",
+};
+
+export const CATEGORY_ORDER: Category[] = [
+  "TOP",
+  "BOTTOM",
+  "DRESS",
+  "OUTERWEAR",
+  "SHOE",
+  "HAT",
+  "BAG",
+  "JEWELRY",
+  "ACCESSORY",
+];
+
 export const STATUS_LABELS: Record<ItemStatus, string> = {
   ACTIVE: "In closet",
   LAUNDRY: "In the wash",
