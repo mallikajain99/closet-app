@@ -1,0 +1,207 @@
+[
+  {
+    "file": "IMG_1558.jpeg",
+    "name": "Charcoal short-sleeve tailored jacket",
+    "category": "OUTERWEAR",
+    "subcategory": "jacket",
+    "colors": [
+      "charcoal"
+    ],
+    "seasons": [
+      "FALL",
+      "SPRING"
+    ],
+    "sleeveLength": "short",
+    "formality": "smart",
+    "material": "wool blend",
+    "pattern": "solid",
+    "silhouette": [
+      "tailored",
+      "fitted"
+    ],
+    "tagNames": [
+      "work"
+    ]
+  },
+  {
+    "file": "IMG_1559.jpeg",
+    "name": "Indigo cotton gauze hooded top",
+    "category": "TOP",
+    "subcategory": "hoodie",
+    "colors": [
+      "indigo"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "sleeveLength": "long",
+    "formality": "casual",
+    "material": "cotton gauze",
+    "pattern": "solid",
+    "silhouette": [
+      "relaxed"
+    ],
+    "tagNames": [],
+    "brand": "Mango"
+  },
+  {
+    "file": "IMG_1560.jpeg",
+    "name": "Brown and white striped mock-neck top",
+    "category": "TOP",
+    "subcategory": "t-shirt",
+    "colors": [
+      "brown",
+      "white"
+    ],
+    "seasons": [
+      "SPRING",
+      "FALL"
+    ],
+    "sleeveLength": "short",
+    "formality": "casual",
+    "material": "cotton knit",
+    "pattern": "striped",
+    "silhouette": [
+      "fitted"
+    ],
+    "tagNames": []
+  },
+  {
+    "file": "IMG_1561.jpeg",
+    "name": "Cornflower blue ruched-waist blouse",
+    "category": "TOP",
+    "subcategory": "blouse",
+    "colors": [
+      "cornflower blue"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "sleeveLength": "short",
+    "formality": "smart",
+    "material": "cotton",
+    "pattern": "solid",
+    "silhouette": [
+      "fitted"
+    ],
+    "tagNames": [],
+    "brand": "Abercrombie & Fitch",
+    "size": "M"
+  },
+  {
+    "file": "IMG_1564.jpeg",
+    "name": "Black textured knit tie-neck top",
+    "category": "TOP",
+    "subcategory": "top",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER"
+    ],
+    "sleeveLength": "long",
+    "formality": "dressy",
+    "material": "textured knit",
+    "pattern": "solid",
+    "silhouette": [
+      "fitted"
+    ],
+    "tagNames": [
+      "going out"
+    ],
+    "brand": "Zara"
+  },
+  {
+    "file": "IMG_1565.jpeg",
+    "name": "Dark brown puff-sleeve linen top",
+    "category": "TOP",
+    "subcategory": "blouse",
+    "colors": [
+      "dark brown"
+    ],
+    "seasons": [
+      "SUMMER",
+      "SPRING"
+    ],
+    "sleeveLength": "short",
+    "formality": "smart",
+    "material": "linen blend",
+    "pattern": "solid",
+    "silhouette": [
+      "relaxed"
+    ],
+    "tagNames": []
+  },
+  {
+    "file": "IMG_1566.jpeg",
+    "name": "White tee with multicolour button embellishment",
+    "category": "TOP",
+    "subcategory": "t-shirt",
+    "colors": [
+      "white",
+      "multicolour"
+    ],
+    "seasons": [
+      "SUMMER",
+      "SPRING"
+    ],
+    "sleeveLength": "short",
+    "formality": "casual",
+    "material": "cotton",
+    "pattern": "embellished",
+    "silhouette": [
+      "boxy",
+      "cropped"
+    ],
+    "tagNames": [],
+    "brand": "Old Navy"
+  },
+  {
+    "file": "IMG_1567.jpeg",
+    "name": "Grey pinstripe off-shoulder puff-sleeve top",
+    "category": "TOP",
+    "subcategory": "blouse",
+    "colors": [
+      "grey",
+      "white"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "sleeveLength": "short",
+    "formality": "smart",
+    "material": "cotton blend",
+    "pattern": "pinstripe",
+    "silhouette": [
+      "relaxed"
+    ],
+    "tagNames": []
+  },
+  {
+    "file": "IMG_1568.jpeg",
+    "name": "Olive suede vest with rope toggles",
+    "category": "OUTERWEAR",
+    "subcategory": "vest",
+    "colors": [
+      "olive"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER"
+    ],
+    "sleeveLength": "sleeveless",
+    "formality": "smart",
+    "material": "suede",
+    "pattern": "solid",
+    "silhouette": [
+      "fitted"
+    ],
+    "tagNames": [],
+    "brand": "Berwin & Wolff",
+    "size": "40"
+  }
+]

@@ -39,6 +39,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, type Category, type Season } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
+import sharp from "sharp";
 
 loadEnv({ path: ".env.local", quiet: true });
 
@@ -59,6 +60,10 @@ type ManifestEntry = {
   file: string;
   name: string;
   category: Category;
+  /** Only when legible on a care label — never inferred from appearance. */
+  brand?: string;
+  /** Likewise: only when printed on the label. */
+  size?: string;
   subcategory?: string;
   colors?: string[];
   seasons?: Season[];
@@ -70,31 +75,82 @@ type ManifestEntry = {
   tagNames?: string[];
 };
 
+/** Long edge of the stored image. Plenty for segmentation; a 6 MB original is not. */
+const MAX_EDGE = 2048;
+
 /**
- * HEIC is converted to JPEG on the way in.
+ * Normalize a photo for storage: correct rotation, downscale, strip metadata.
  *
- * iPhone photos are HEIC, which Chrome and Firefox cannot display — they would upload
- * fine and then render as broken images. `sips` ships with macOS, so this needs no
- * image library.
+ * Three things happen here, each worth doing:
+ *
+ * 1. **Orientation is baked into the pixels.** iPhone photos arrive as landscape pixels
+ *    plus an EXIF orientation tag (these were tag 6 = rotate 90° CW). Browsers honour
+ *    that, but image pipelines frequently don't — so the app would look right while
+ *    background removal ran on a sideways garment. `sharp().rotate()` with no argument
+ *    applies the EXIF rotation, whatever it says, then the tag is dropped.
+ * 2. **Downscaled to a 2048px long edge.** These originals are ~5700px and 4–6 MB each;
+ *    the segmentation models work around 1–2k px, so the extra pixels cost storage and
+ *    upload time and buy nothing.
+ * 3. **EXIF is stripped**, which removes the GPS coordinates iPhones embed — otherwise
+ *    every garment photo carries the location it was taken at.
  */
-function toUploadable(path: string): { buffer: Buffer; contentType: string; ext: string } {
+async function toUploadable(path: string) {
   const ext = extname(path).toLowerCase();
 
+  // sharp's prebuilt binaries don't always include libheif; sips always can.
+  let input = path;
   if (ext === ".heic" || ext === ".heif") {
-    const out = join(mkdtempSync(join(tmpdir(), "closet-")), "converted.jpg");
-    execFileSync("sips", ["-s", "format", "jpeg", path, "--out", out], {
-      stdio: "pipe",
-    });
-    return { buffer: readFileSync(out), contentType: "image/jpeg", ext: ".jpg" };
+    input = join(mkdtempSync(join(tmpdir(), "closet-")), "converted.jpg");
+    execFileSync("sips", ["-s", "format", "jpeg", path, "--out", input], { stdio: "pipe" });
   }
 
-  const contentType =
-    ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
-  return { buffer: readFileSync(path), contentType, ext };
+  const buffer = await sharp(readFileSync(input))
+    .rotate()
+    .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 88, mozjpeg: true })
+    .toBuffer();
+
+  return { buffer, contentType: "image/jpeg", ext: ".jpg" };
 }
 
 function normalizeWhitespace(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Retry an upload with backoff.
+ *
+ * Storage uploads of a few hundred KB back to back intermittently fail with a bare
+ * "fetch failed" — a dropped connection rather than a rejection, so it succeeds on a
+ * second attempt. Without this, a long batch reliably loses a handful of photos partway
+ * through and needs babysitting.
+ */
+async function withRetry<T>(
+  label: string,
+  attempt: () => Promise<{ error: { message: string } | null } & T>,
+  attempts = 4,
+) {
+  let lastMessage = "unknown error";
+
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      const result = await attempt();
+      if (!result.error) return result;
+      lastMessage = result.error.message;
+    } catch (error) {
+      lastMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    if (i < attempts) {
+      const delay = 500 * 2 ** (i - 1);
+      console.log(`    ${label} failed (${lastMessage}) — retrying in ${delay}ms`);
+      await sleep(delay);
+    }
+  }
+
+  return { error: { message: `${lastMessage} (after ${attempts} attempts)` } } as never;
 }
 
 /** Reuse a spelling already in the closet, so bulk import doesn't refragment the vocabulary. */
@@ -139,10 +195,16 @@ async function main() {
   // Existing vocabularies, so imported values match what's already in the closet.
   const existingItems = await db.item.findMany({
     where: { userId: user.id },
-    select: { subcategory: true, attributes: true },
+    select: { subcategory: true, brand: true, size: true, attributes: true },
   });
   const subcategories = existingItems
     .map((i) => i.subcategory)
+    .filter((v): v is string => Boolean(v));
+  const brands = existingItems
+    .map((i) => i.brand)
+    .filter((v): v is string => Boolean(v));
+  const sizes = existingItems
+    .map((i) => i.size)
     .filter((v): v is string => Boolean(v));
   const materials = new Set<string>();
   const patterns = new Set<string>();
@@ -174,12 +236,14 @@ async function main() {
     console.log(`  ${entry.file}  →  ${entry.name}  [${entry.category}]`);
     if (!APPLY) continue;
 
-    const { buffer, contentType, ext } = toUploadable(path);
+    const { buffer, contentType, ext } = await toUploadable(path);
     const key = `${user.id}/${crypto.randomUUID()}${ext}`;
 
-    const { error } = await storage.storage
-      .from("closet-originals")
-      .upload(key, buffer, { contentType, upsert: false });
+    const { error } = await withRetry("upload", () =>
+      storage.storage
+        .from("closet-originals")
+        .upload(key, buffer, { contentType, upsert: false }),
+    );
 
     if (error) {
       console.log(`    upload failed: ${error.message}`);
@@ -212,6 +276,8 @@ async function main() {
         name: normalizeWhitespace(entry.name),
         category: entry.category,
         subcategory: canonicalize(entry.subcategory, subcategories),
+        brand: canonicalize(entry.brand, brands),
+        size: canonicalize(entry.size, sizes),
         colors: entry.colors ?? [],
         seasons: entry.seasons ?? [],
         attributes,
