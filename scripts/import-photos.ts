@@ -175,9 +175,32 @@ async function main() {
   }
 
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
-  const storage = createClient(supabaseUrl, serviceKey, {
+
+  /**
+   * The storage client is rebuilt every few uploads.
+   *
+   * A single client reliably starts failing with a bare "fetch failed" after roughly
+   * 16 consecutive uploads — its keep-alive connection pool degrades, and retries with
+   * backoff don't recover it because the pool itself is the problem. A fresh process
+   * always worked, which is what pointed at the client rather than the network. Cycling
+   * the client gets the same effect without splitting a batch across runs.
+   */
+  const UPLOADS_PER_CLIENT = 10;
+  let storage = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  let uploadsOnClient = 0;
+
+  function storageClient() {
+    if (uploadsOnClient >= UPLOADS_PER_CLIENT) {
+      storage = createClient(supabaseUrl, serviceKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      uploadsOnClient = 0;
+    }
+    uploadsOnClient += 1;
+    return storage;
+  }
 
   const users = await db.user.findMany({ select: { id: true, email: true } });
   if (users.length !== 1) {
@@ -240,8 +263,8 @@ async function main() {
     const key = `${user.id}/${crypto.randomUUID()}${ext}`;
 
     const { error } = await withRetry("upload", () =>
-      storage.storage
-        .from("closet-originals")
+      storageClient()
+        .storage.from("closet-originals")
         .upload(key, buffer, { contentType, upsert: false }),
     );
 
