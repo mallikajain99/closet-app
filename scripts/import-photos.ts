@@ -186,16 +186,18 @@ async function main() {
    * the client gets the same effect without splitting a batch across runs.
    */
   const UPLOADS_PER_CLIENT = 10;
-  let storage = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  // Bound to locals so the narrowing from the env check above survives into the closure.
+  const newStorageClient = () =>
+    createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+  let storage = newStorageClient();
   let uploadsOnClient = 0;
 
   function storageClient() {
     if (uploadsOnClient >= UPLOADS_PER_CLIENT) {
-      storage = createClient(supabaseUrl, serviceKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
+      storage = newStorageClient();
       uploadsOnClient = 0;
     }
     uploadsOnClient += 1;
