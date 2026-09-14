@@ -24,7 +24,12 @@ const MODEL = "851-labs/background-remover";
  */
 const MASK_MODEL = "schananas/grounded_sam";
 const MASK_PROMPT = "shirt,clothing,garment,jacket,sweater";
-const MASK_NEGATIVE_PROMPT = "hanger,hook,wire,door,wall";
+/**
+ * Deliberately narrow. An earlier version included "hook,wire", which ate the rope
+ * toggles off a suede vest — the model is right that a rope loop is hook-like. Only the
+ * hanger itself and the backdrop need naming; the positive prompt does the rest.
+ */
+const MASK_NEGATIVE_PROMPT = "hanger,door,wall";
 
 /**
  * Predictions are created asynchronously and polled.
@@ -51,16 +56,30 @@ function token() {
 }
 
 /**
- * How much to grow the clothing mask before using it as a gate.
+ * Longest edge of the image sent to Replicate.
  *
- * The gate must sit slightly *outside* the garment so it never clips the crisp cutout's
- * own edge — the point is to remove the hanger, not to re-cut the shirt. Blur spreads the
- * mask outward; the linear ramp then hardens it back to near-binary so the interior stays
- * fully opaque rather than fading.
+ * Sending the stored 2048px original as a base64 data URI meant ~550KB per request,
+ * twice per item, and large TLS uploads were intermittently corrupting — "bad record
+ * mac", surfacing downstream as a destroyed session. Both models operate around 1024px,
+ * and the cut-out only needs to exceed the ~800px it's eventually drawn at, so the extra
+ * pixels bought nothing and cost reliability.
  */
-const GATE_BLUR = 12;
-const GATE_GAIN = 6;
-const GATE_OFFSET = -300;
+const REQUEST_MAX_EDGE = 1024;
+
+/** Downscale and re-encode for transport; never upscales. */
+async function forRequest(source: Buffer): Promise<string> {
+  const prepared = await sharp(source)
+    .resize({
+      width: REQUEST_MAX_EDGE,
+      height: REQUEST_MAX_EDGE,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  return `data:image/jpeg;base64,${prepared.toString("base64")}`;
+}
 
 type Prediction = {
   id: string;
@@ -171,7 +190,7 @@ function firstOutputUrl(prediction: Prediction): string {
  * so a URL would mean minting a signed one and hoping it outlives the prediction.
  */
 export async function removeBackground(source: Buffer): Promise<Buffer> {
-  const dataUri = `data:image/jpeg;base64,${source.toString("base64")}`;
+  const dataUri = await forRequest(source);
   const version = await latestVersionOf(MODEL);
 
   const response = await postPrediction(version, {
@@ -198,7 +217,7 @@ export async function removeBackground(source: Buffer): Promise<Buffer> {
 
 /** Binary mask of the clothing in the frame, hanger excluded. */
 async function clothingMask(source: Buffer): Promise<Buffer> {
-  const dataUri = `data:image/jpeg;base64,${source.toString("base64")}`;
+  const dataUri = await forRequest(source);
 
   const version = await latestVersionOf(MASK_MODEL);
   const response = await postPrediction(version, {
@@ -234,6 +253,47 @@ async function clothingMask(source: Buffer): Promise<Buffer> {
 }
 
 /**
+ * The first row of the image containing a meaningful amount of clothing.
+ *
+ * Two earlier approaches failed here. Gating the alpha per-pixel by the clothing mask
+ * punched holes straight through garments wherever the hanger crossed them — a gap at a
+ * cardigan's neck, toggles eaten off a vest — because the hanger genuinely isn't
+ * clothing and the mask says so. Filling those holes first needed pixel indexing, which
+ * I got wrong twice.
+ *
+ * This does the one thing actually required. The hanger's hook sits entirely *above* the
+ * garment, so finding the garment's top edge and clearing everything above it removes
+ * the hook without touching a single pixel of the garment. Holes are impossible by
+ * construction.
+ *
+ * The hanger bar behind an open collar survives, but no masking approach removes that —
+ * it is genuinely visible through the fabric's own opening.
+ */
+async function clothingTopRow(mask: Buffer, width: number, height: number) {
+  const { data, info } = await sharp(mask)
+    .resize(width, height, { fit: "fill" })
+    .greyscale()
+    .toColourspace("b-w")
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  // A row counts as clothing once enough of it is opaque, so a stray speck of noise or
+  // a sliver of misclassified hanger doesn't set the boundary.
+  const minRunPixels = Math.max(8, Math.round(info.width * 0.02));
+
+  for (let y = 0; y < info.height; y += 1) {
+    let opaque = 0;
+    const rowStart = y * info.width;
+    for (let x = 0; x < info.width; x += 1) {
+      if (data[rowStart + x] >= 128) opaque += 1;
+    }
+    if (opaque >= minRunPixels) return y;
+  }
+
+  return 0;
+}
+
+/**
  * Cut out a garment: crisp edges from salient-object segmentation, hanger removed by
  * gating that result against a prompt-guided clothing mask.
  *
@@ -250,28 +310,32 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
   const { width, height } = await sharp(cutout).metadata();
   if (!width || !height) throw new Error("Could not read cutout dimensions.");
 
-  const gate = await sharp(mask)
-    .resize(width, height, { fit: "fill" })
-    .greyscale()
-    .blur(GATE_BLUR)
-    .linear(GATE_GAIN, GATE_OFFSET)
-    .raw()
-    .toBuffer();
+  const topRow = await clothingTopRow(mask, width, height);
 
-  const alpha = await sharp(cutout).extractChannel("alpha").raw().toBuffer();
+  // Leave a small margin above the detected edge: the mask traces the garment loosely,
+  // and clipping a collar would be far worse than leaving a few pixels of hook.
+  const cutRow = Math.max(0, topRow - Math.round(height * 0.01));
+  if (cutRow <= 0) return cutout;
 
-  const gated = Buffer.alloc(alpha.length);
-  for (let i = 0; i < gated.length; i += 1) {
-    gated[i] = Math.round((alpha[i] * Math.min(255, gate[i])) / 255);
-  }
-
-  const gatedAlpha = await sharp(gated, {
-    raw: { width, height, channels: 1 },
-  })
+  // Clear the band above the garment. `dest-out` erases wherever the overlay has
+  // coverage, so a fully opaque rectangle punches that band to transparent.
+  return sharp(cutout)
+    .composite([
+      {
+        input: {
+          create: {
+            width,
+            height: cutRow,
+            channels: 4,
+            background: { r: 0, g: 0, b: 0, alpha: 1 },
+          },
+        },
+        left: 0,
+        top: 0,
+        blend: "dest-out",
+      },
+    ])
     .png()
     .toBuffer();
-
-  const rgb = await sharp(cutout).removeAlpha().png().toBuffer();
-
-  return sharp(rgb).ensureAlpha().joinChannel(gatedAlpha).png().toBuffer();
 }
+
