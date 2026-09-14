@@ -99,16 +99,20 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * marking failed. Unlike the Supabase client there's nothing to cycle here, so a retry
  * with backoff is the lever available.
  */
-async function withRetry<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
+async function withRetry<T>(
+  operation: (attempt: number) => Promise<T>,
+  attempts = 3,
+): Promise<T> {
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      return await operation();
+      return await operation(attempt);
     } catch (error) {
       lastError = error;
-      const transient =
-        error instanceof Error && /fetch failed|socket|ECONN|ETIMEDOUT/i.test(error.message);
+      const cause = error instanceof Error ? (error.cause as Error | undefined) : undefined;
+      const text = `${error instanceof Error ? error.message : ""} ${cause?.message ?? ""}`;
+      const transient = /fetch failed|socket|ECONN|ETIMEDOUT|HTTP2|session/i.test(text);
       if (!transient || attempt === attempts) throw error;
 
       const delay = 2000 * attempt;
@@ -149,6 +153,20 @@ async function main() {
     return storage;
   };
 
+  /**
+   * Force a fresh client after a transport failure.
+   *
+   * The Supabase client holds an HTTP/2 session that can be destroyed mid-run
+   * (ERR_HTTP2_INVALID_SESSION). Once that happens every subsequent call on that client
+   * fails, so retrying without replacing it just burns the attempts — which is exactly
+   * what happened: 34 items each failed three times in a row against the same dead
+   * session.
+   */
+  const resetClient = () => {
+    storage = newClient();
+    opsOnClient = 0;
+  };
+
   const items = await db.item.findMany({
     where: {
       NOT: { originalImageKey: null },
@@ -180,7 +198,10 @@ async function main() {
     }
 
     try {
-      const { full, thumb, trimmedSize, fitted } = await withRetry(async () => {
+      const { full, thumb, trimmedSize, fitted } = await withRetry(async (attempt) => {
+        // Every attempt after the first starts from a new connection.
+        if (attempt > 1) resetClient();
+
         const { data, error } = await client()
           .storage.from(ORIGINALS)
           .download(item.originalImageKey!);
