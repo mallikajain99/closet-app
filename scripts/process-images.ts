@@ -63,18 +63,24 @@ async function normalize(cutout: Buffer, category: Category) {
     .png()
     .toBuffer();
 
-  const canvas = sharp({
+  // Composite once to a buffer, then derive both outputs from it. Calling .clone() on a
+  // `create`-based pipeline loses the canvas dimensions, and the composite then fails
+  // with "Image to composite must have same dimensions or smaller" even though the
+  // garment is comfortably smaller than the canvas.
+  const composited = await sharp({
     create: {
       width: CANVAS_SIZE,
       height: CANVAS_SIZE,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
-  }).composite([{ input: resized, left, top }]);
+  })
+    .composite([{ input: resized, left, top }])
+    .png()
+    .toBuffer();
 
-  const full = await canvas.clone().webp({ quality: 90, alphaQuality: 100 }).toBuffer();
-  const thumb = await canvas
-    .clone()
+  const full = await sharp(composited).webp({ quality: 90, alphaQuality: 100 }).toBuffer();
+  const thumb = await sharp(composited)
     .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
     .webp({ quality: 82, alphaQuality: 100 })
     .toBuffer();
@@ -91,7 +97,7 @@ async function main() {
   }
 
   // Imported lazily so a dry run doesn't require the Replicate token to be present.
-  const { removeBackground } = await import("../lib/images/segment");
+  const { cutOutGarment } = await import("../lib/images/segment");
 
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
   const newClient = () =>
@@ -146,7 +152,7 @@ async function main() {
       if (error || !data) throw new Error(`download failed: ${error?.message ?? "no data"}`);
 
       const original = Buffer.from(await data.arrayBuffer());
-      const cutout = await removeBackground(original);
+      const cutout = await cutOutGarment(original);
       const { full, thumb, trimmedSize, fitted } = await normalize(cutout, item.category);
 
       const base = `${item.id}`;
