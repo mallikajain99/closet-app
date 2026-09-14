@@ -88,6 +88,38 @@ async function normalize(cutout: Buffer, category: Category) {
   return { full, thumb, trimmedSize: { width: meta.width, height: meta.height }, fitted };
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Retry the whole segment-and-normalize step for one item.
+ *
+ * Over a long run, Node's shared fetch agent starts failing with a bare "fetch failed" —
+ * a degraded connection rather than a rejection. A fresh process always worked, and the
+ * same operation succeeds moments later, so the item is worth retrying rather than
+ * marking failed. Unlike the Supabase client there's nothing to cycle here, so a retry
+ * with backoff is the lever available.
+ */
+async function withRetry<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const transient =
+        error instanceof Error && /fetch failed|socket|ECONN|ETIMEDOUT/i.test(error.message);
+      if (!transient || attempt === attempts) throw error;
+
+      const delay = 2000 * attempt;
+      process.stdout.write(`retrying in ${delay / 1000}s … `);
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
+
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -148,12 +180,16 @@ async function main() {
     }
 
     try {
-      const { data, error } = await client().storage.from(ORIGINALS).download(item.originalImageKey!);
-      if (error || !data) throw new Error(`download failed: ${error?.message ?? "no data"}`);
+      const { full, thumb, trimmedSize, fitted } = await withRetry(async () => {
+        const { data, error } = await client()
+          .storage.from(ORIGINALS)
+          .download(item.originalImageKey!);
+        if (error || !data) throw new Error(`download failed: ${error?.message ?? "no data"}`);
 
-      const original = Buffer.from(await data.arrayBuffer());
-      const cutout = await cutOutGarment(original);
-      const { full, thumb, trimmedSize, fitted } = await normalize(cutout, item.category);
+        const original = Buffer.from(await data.arrayBuffer());
+        const cutout = await cutOutGarment(original);
+        return normalize(cutout, item.category);
+      });
 
       const base = `${item.id}`;
       const fullKey = `${base}.webp`;
@@ -184,7 +220,16 @@ async function main() {
       );
       done += 1;
     } catch (error) {
-      console.log(`FAILED — ${error instanceof Error ? error.message : String(error)}`);
+      // Node's fetch reports transport problems as a bare "fetch failed" and puts the
+      // real reason on `cause`. Without unwrapping it, a connection reset, a DNS
+      // failure and a timeout are indistinguishable.
+      const cause = error instanceof Error ? (error.cause as Error | undefined) : undefined;
+      const detail = cause
+        ? ` (${cause.name}: ${cause.message}${"code" in cause ? ` [${String(cause.code)}]` : ""})`
+        : "";
+      console.log(
+        `FAILED — ${error instanceof Error ? error.message : String(error)}${detail}`,
+      );
       // Recorded so the item keeps showing its original and a later run can retry it.
       await db.item.update({
         where: { id: item.id },
