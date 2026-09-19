@@ -49,7 +49,10 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
   DRESS: { slot: "TOP", label: "Dress", height: 0.58, centre: 0.46, z: 30 },
   // Waist to ankle — the longest garment on the figure, not the shortest.
   BOTTOM: { slot: "BOTTOM", label: "Bottom", height: 0.5, centre: 0.7, z: 20 },
-  SHOE: { slot: "SHOES", label: "Shoes", height: 0.075, centre: 0.962, z: 50 },
+  // Deliberately larger than anatomy: a foot is ~5% of height seen front-on, but these
+  // photos show a whole shoe from the front rather than a foreshortened foot, so the
+  // true figure renders as a speck. Sized for visual balance instead.
+  SHOE: { slot: "SHOES", label: "Shoes", height: 0.13, centre: 0.935, z: 50 },
   BAG: { slot: "BAG", label: "Bag", height: 0.18, centre: 0.55, z: 55 },
 };
 
