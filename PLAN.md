@@ -1,6 +1,6 @@
 # Digital Closet Manager — Implementation Plan
 
-**Status:** Phases 0–3 complete; Phase 5 (wear tracking) underway ahead of Phase 4, deliberately — wear logging works on loose items today, whereas the outfit builder needs bottoms that don't exist yet, and analytics only get interesting once wear data has had time to accumulate. Wears can now be logged and backdated from the item page; the calendar view and OOTD photo remain. No open decision gates Phase 4. The one real gap is still the catalog itself: 29 tops, 20 outerwear and 2 shoes, so no full outfit can be built and the lower half of the composite geometry stays unvalidated until bottoms are photographed
+**Status:** Phases 0–3 and 5 complete. Phase 5 was taken ahead of Phase 4 deliberately — wear logging works on loose items today, the outfit builder needs bottoms that don't exist yet, and analytics only get interesting once wear data has accumulated. Wears log and backdate from the item page and render on a month calendar; per-wear OOTD photos were dropped as out of scope. **Phase 4 (outfit builder) is next**, now carrying outfit photos, which are the real answer to seeing clothes on a body and demote the mannequin composite to a fallback. The one real gap is still the catalog itself: 29 tops, 20 outerwear and 2 shoes, so no full outfit can be built until bottoms are photographed
 **Last updated:** 2026-09-19
 **Companion doc:** [closet_app_feature_spec.md](./closet_app_feature_spec.md)
 
