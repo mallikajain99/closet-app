@@ -80,7 +80,9 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[360px_1fr]">
         <div>
-          <div className="relative aspect-[3/4] overflow-hidden bg-surface-sunken">
+          {/* Square to match the render's canvas, as in the grid — a portrait frame
+              letterboxes a square image and shrinks the garment for no gain. */}
+          <div className="relative aspect-square overflow-hidden bg-surface-sunken">
             {imageUrl ? (
               <Image
                 src={imageUrl}

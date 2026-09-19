@@ -27,7 +27,10 @@ export function ItemCard({ item }: { item: ItemCardData }) {
   return (
     <li>
       <Link href={`/catalog/${item.id}`} className="group block">
-        <div className="relative aspect-[3/4] overflow-hidden bg-surface-sunken">
+        {/* Square, matching the render's own canvas. A 3:4 tile with `object-cover`
+            cropped the garment: the overflow used to be empty space, but items fill
+            most of their canvas now, so it was cutting off hems and shoulders. */}
+        <div className="relative aspect-square overflow-hidden bg-surface-sunken">
           {item.imageUrl ? (
             <Image
               src={item.imageUrl}
@@ -37,8 +40,8 @@ export function ItemCard({ item }: { item: ItemCardData }) {
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 240px"
               className={
                 unavailable
-                  ? "object-cover opacity-40 transition-opacity"
-                  : "object-cover transition-opacity group-hover:opacity-90"
+                  ? "object-contain opacity-40 transition-opacity"
+                  : "object-contain transition-opacity group-hover:opacity-90"
               }
             />
           ) : (
