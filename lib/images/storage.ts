@@ -78,6 +78,56 @@ export async function getSignedImageUrls(
   return new Map(entries);
 }
 
+/**
+ * The image an item should actually be shown with.
+ *
+ * Originals and renders live in *different buckets*, so a key alone is not enough to
+ * sign — signing a processed key against the originals bucket returns "Object not
+ * found", which silently renders as "No photo". Callers must go through this rather
+ * than picking a key and signing it themselves.
+ *
+ * Falls back to the source photo whenever there's no render yet: pending, failed, and
+ * user-overridden items all stay visible.
+ */
+export type ItemImageRefs = {
+  id: string;
+  originalImageKey: string | null;
+  processedImageKey: string | null;
+  thumbnailKey?: string | null;
+};
+
+export async function getItemImageUrls(
+  items: readonly ItemImageRefs[],
+  prefer: "full" | "thumbnail" = "full",
+): Promise<Map<string, string>> {
+  const renderKeyFor = (item: ItemImageRefs) =>
+    (prefer === "thumbnail" ? item.thumbnailKey : null) ?? item.processedImageKey;
+
+  // Two batched calls — one per bucket — rather than one per item, which would dominate
+  // the render of a grid at a few hundred items.
+  const [renders, originals] = await Promise.all([
+    getSignedImageUrls(items.map(renderKeyFor), PROCESSED_BUCKET),
+    // Every original is signed, not just the ones missing a render, so that a render
+    // whose object has gone missing still falls back to a visible photo.
+    getSignedImageUrls(items.map((item) => item.originalImageKey), ORIGINALS_BUCKET),
+  ]);
+
+  const resolved = new Map<string, string>();
+  for (const item of items) {
+    const renderKey = renderKeyFor(item);
+    const url =
+      (renderKey ? renders.get(renderKey) : null) ??
+      (item.originalImageKey ? originals.get(item.originalImageKey) : null);
+    if (url) resolved.set(item.id, url);
+  }
+  return resolved;
+}
+
+/** Single-item variant, for the detail page. */
+export async function getItemImageUrl(item: ItemImageRefs) {
+  return (await getItemImageUrls([item])).get(item.id) ?? null;
+}
+
 /** Best-effort cleanup. A failure here must not block deleting the item itself. */
 export async function deleteImage(key: string | null | undefined, bucket: string = ORIGINALS_BUCKET) {
   if (!key) return;

@@ -11,6 +11,9 @@ import { readSilhouette } from "@/lib/validation/item";
 
 export const metadata = { title: "Edit item" };
 
+/** Replacing the photo re-runs the pipeline via `after()` — see `catalog/new/page.tsx`. */
+export const maxDuration = 60;
+
 export default async function EditItemPage(
   props: PageProps<"/catalog/[itemId]/edit">,
 ) {

@@ -2,13 +2,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { deleteItem } from "@/app/(app)/catalog/actions";
+import {
+  deleteItem,
+  keepOriginalImage,
+  reprocessItem,
+} from "@/app/(app)/catalog/actions";
 import { DeleteItemButton } from "@/components/catalog/delete-item-button";
+import { ImageControls } from "@/components/catalog/image-controls";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getSignedImageUrl } from "@/lib/images/storage";
+import { getItemImageUrl } from "@/lib/images/storage";
 import { costPerWearCents, formatCents } from "@/lib/stats/cost-per-wear";
 import { CATEGORY_LABELS, STATUS_LABELS, readSilhouette } from "@/lib/validation/item";
+
+/** Reprocessing runs via `after()` inside this request — see `catalog/new/page.tsx`. */
+export const maxDuration = 60;
 
 export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]">) {
   const { itemId } = await props.params;
@@ -24,9 +32,17 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
 
   if (!item) notFound();
 
-  const imageUrl = await getSignedImageUrl(
-    item.processedImageKey ?? item.originalImageKey,
-  );
+  // The most recent job row carries the reason a cutout failed, so the page can say
+  // more than "something went wrong".
+  const [imageUrl, job] = await Promise.all([
+    getItemImageUrl(item),
+    db.imageJob.findFirst({
+      where: { subjectType: "ITEM", subjectId: item.id },
+      orderBy: { createdAt: "desc" },
+      select: { error: true },
+    }),
+  ]);
+
   const wearCount = item._count.wearLogItems;
   const cpw = costPerWearCents(item.priceCents, wearCount);
   const attributes = (item.attributes ?? {}) as Record<string, string>;
@@ -63,21 +79,31 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
       </div>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[360px_1fr]">
-        <div className="relative aspect-[3/4] overflow-hidden bg-surface-sunken">
-          {imageUrl ? (
-            <Image
-              src={imageUrl}
-              alt=""
-              fill
-              unoptimized
-              sizes="(max-width: 1024px) 100vw, 360px"
-              className="object-contain"
-            />
-          ) : (
-            <span className="label absolute inset-0 flex items-center justify-center text-ink-subtle">
-              No photo
-            </span>
-          )}
+        <div>
+          <div className="relative aspect-[3/4] overflow-hidden bg-surface-sunken">
+            {imageUrl ? (
+              <Image
+                src={imageUrl}
+                alt=""
+                fill
+                unoptimized
+                sizes="(max-width: 1024px) 100vw, 360px"
+                className="object-contain"
+              />
+            ) : (
+              <span className="label absolute inset-0 flex items-center justify-center text-ink-subtle">
+                No photo
+              </span>
+            )}
+          </div>
+
+          <ImageControls
+            status={item.processingStatus}
+            hasPhoto={Boolean(item.originalImageKey)}
+            error={job?.error ?? null}
+            reprocess={reprocessItem.bind(null, item.id)}
+            keepOriginal={keepOriginalImage.bind(null, item.id)}
+          />
         </div>
 
         <div>

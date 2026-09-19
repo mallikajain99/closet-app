@@ -2,10 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { PROCESSED_BUCKET } from "@/lib/images/storage.client";
 import { createSignedUpload, deleteImage } from "@/lib/images/storage";
+import { processItemImage } from "@/lib/images/pipeline";
 import { canonicalize, normalizeSize } from "@/lib/text";
 import { buildAttributes, itemInputSchema, type ItemInput } from "@/lib/validation/item";
 
@@ -124,6 +127,22 @@ async function connectTags(userId: string, tagNames: readonly string[]) {
   );
 }
 
+/**
+ * Queue the image pipeline for an item without making the user wait for it.
+ *
+ * `after` keeps the invocation alive until the callback settles, so on Vercel the work
+ * really does finish — but it counts against the route's `maxDuration`, which is why
+ * the catalog segments raise theirs. Segmentation is a round trip to Replicate plus two
+ * uploads, so 20–60s is normal. The pipeline never throws; it records FAILED and the
+ * item keeps showing its original photo, which the catalog can then offer to retry.
+ */
+function scheduleProcessing(itemId: string) {
+  after(async () => {
+    const result = await processItemImage(itemId);
+    if (!result.ok) console.error(`Image pipeline failed for ${itemId}: ${result.error}`);
+  });
+}
+
 export async function createItem(
   _prev: ActionResult | null,
   formData: FormData,
@@ -145,7 +164,8 @@ export async function createItem(
     canonicalizeFields(user.id, input),
   ]);
 
-  await db.item.create({
+  const created = await db.item.create({
+    select: { id: true },
     data: {
       userId: user.id,
       name: input.name,
@@ -163,12 +183,14 @@ export async function createItem(
       returnByDate: input.returnByDate,
       attributes: buildAttributes(input, canonical),
       originalImageKey: input.originalImageKey,
-      // Phase 2 replaces this with a real pipeline run. Until then the source image is
-      // shown as-is, so the item is usable rather than stuck pending forever.
+      // The pipeline flips this to DONE below. Until it does, the catalog shows the
+      // source image, so a new item is usable immediately rather than blank.
       processingStatus: "PENDING",
       tags: { create: tags.map((tag) => ({ tagId: tag.id })) },
     },
   });
+
+  if (input.originalImageKey) scheduleProcessing(created.id);
 
   revalidatePath("/catalog");
   redirect("/catalog");
@@ -230,11 +252,84 @@ export async function updateItem(
     },
   });
 
-  if (imageChanged) await deleteImage(existing.originalImageKey);
+  if (imageChanged) {
+    await deleteImage(existing.originalImageKey);
+    scheduleProcessing(existing.id);
+  }
 
   revalidatePath("/catalog");
   revalidatePath(`/catalog/${itemId}`);
   redirect(`/catalog/${itemId}`);
+}
+
+/** Scope by userId as well as id so a guessed UUID can't reach another user's item. */
+async function findOwnedItem(itemId: string, userId: string) {
+  return db.item.findFirst({
+    where: { id: itemId, userId },
+    select: { id: true, originalImageKey: true, processingStatus: true },
+  });
+}
+
+/**
+ * Manual override — re-run the pipeline on an item the user isn't happy with.
+ *
+ * Also the retry path for a FAILED item, and the way an OVERRIDDEN item comes back into
+ * the pipeline if the user changes their mind.
+ */
+export async function reprocessItem(itemId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const existing = await findOwnedItem(itemId, user.id);
+
+  if (!existing) return { ok: false, message: "That item no longer exists." };
+  if (!existing.originalImageKey) {
+    return { ok: false, message: "This item has no photo to process." };
+  }
+
+  await db.item.update({
+    where: { id: existing.id },
+    data: { processingStatus: "PENDING" },
+  });
+  scheduleProcessing(existing.id);
+
+  revalidatePath("/catalog");
+  revalidatePath(`/catalog/${itemId}`);
+  return { ok: true };
+}
+
+/**
+ * Manual override — reject the cut-out and keep the source photo.
+ *
+ * The render is deleted rather than merely unreferenced, so the catalog can't quietly
+ * fall back to a version the user has already rejected. OVERRIDDEN is excluded from
+ * backfill runs, so this decision survives a `--redo`.
+ */
+export async function keepOriginalImage(itemId: string): Promise<ActionResult> {
+  const user = await requireUser();
+
+  const existing = await db.item.findFirst({
+    where: { id: itemId, userId: user.id },
+    select: { id: true, processedImageKey: true, thumbnailKey: true },
+  });
+
+  if (!existing) return { ok: false, message: "That item no longer exists." };
+
+  await db.item.update({
+    where: { id: existing.id },
+    data: {
+      processingStatus: "OVERRIDDEN",
+      processedImageKey: null,
+      thumbnailKey: null,
+    },
+  });
+
+  await Promise.all([
+    deleteImage(existing.processedImageKey, PROCESSED_BUCKET),
+    deleteImage(existing.thumbnailKey, PROCESSED_BUCKET),
+  ]);
+
+  revalidatePath("/catalog");
+  revalidatePath(`/catalog/${itemId}`);
+  return { ok: true };
 }
 
 export async function deleteItem(itemId: string) {
@@ -242,7 +337,12 @@ export async function deleteItem(itemId: string) {
 
   const existing = await db.item.findFirst({
     where: { id: itemId, userId: user.id },
-    select: { id: true, originalImageKey: true, processedImageKey: true },
+    select: {
+      id: true,
+      originalImageKey: true,
+      processedImageKey: true,
+      thumbnailKey: true,
+    },
   });
 
   if (!existing) return;
@@ -250,10 +350,12 @@ export async function deleteItem(itemId: string) {
   await db.item.delete({ where: { id: existing.id } });
 
   // After the row is gone: orphaned storage objects are recoverable, a dangling image
-  // reference on a live item is not.
+  // reference on a live item is not. The renders live in their own bucket, so they need
+  // the bucket named explicitly — the default is the originals bucket.
   await Promise.all([
     deleteImage(existing.originalImageKey),
-    deleteImage(existing.processedImageKey),
+    deleteImage(existing.processedImageKey, PROCESSED_BUCKET),
+    deleteImage(existing.thumbnailKey, PROCESSED_BUCKET),
   ]);
 
   revalidatePath("/catalog");

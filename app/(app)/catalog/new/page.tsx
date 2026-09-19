@@ -8,6 +8,14 @@ import { getSilhouetteSuggestions } from "@/lib/items/suggestions";
 
 export const metadata = { title: "Add an item" };
 
+/**
+ * Saving an item schedules the image pipeline with `after()`, which runs inside this
+ * page's invocation — so the page, not the pipeline, owns the timeout. Segmentation is
+ * a Replicate round trip plus two uploads: 20–60s. Raise to 300 on a Vercel plan that
+ * permits it if long runs start being cut off.
+ */
+export const maxDuration = 60;
+
 export default async function NewItemPage() {
   const user = await requireUser();
 

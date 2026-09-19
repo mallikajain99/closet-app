@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { PROCESSING_BADGE } from "@/lib/images/status";
 import { costPerWearCents, formatCents } from "@/lib/stats/cost-per-wear";
 import { CATEGORY_LABELS } from "@/lib/validation/item";
-import type { Category, ItemStatus } from "@prisma/client";
+import type { Category, ItemStatus, ProcessingStatus } from "@prisma/client";
 
 export type ItemCardData = {
   id: string;
@@ -12,6 +13,7 @@ export type ItemCardData = {
   brand: string | null;
   priceCents: number | null;
   status: ItemStatus;
+  processingStatus: ProcessingStatus;
   wearCount: number;
   imageUrl: string | null;
 };
@@ -19,6 +21,8 @@ export type ItemCardData = {
 export function ItemCard({ item }: { item: ItemCardData }) {
   const cpw = costPerWearCents(item.priceCents, item.wearCount);
   const unavailable = item.status !== "ACTIVE";
+  // Only meaningful once there's a photo — an item with no image has nothing to process.
+  const processing = item.imageUrl ? PROCESSING_BADGE[item.processingStatus] : undefined;
 
   return (
     <li>
@@ -46,6 +50,15 @@ export function ItemCard({ item }: { item: ItemCardData }) {
           {unavailable && (
             <span className="label absolute left-0 top-0 bg-signal-laundry-soft px-2 py-1 text-signal-laundry">
               {item.status === "LAUNDRY" ? "In wash" : "Unavailable"}
+            </span>
+          )}
+
+          {/* Opposite corner from the laundry badge so the two can coexist. */}
+          {processing && (
+            <span
+              className={`label absolute right-0 top-0 px-2 py-1 ${processing.className}`}
+            >
+              {processing.label}
             </span>
           )}
         </div>

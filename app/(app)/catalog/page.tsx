@@ -5,7 +5,7 @@ import { CategoryFilter } from "@/components/catalog/category-filter";
 import { ItemCard, type ItemCardData } from "@/components/catalog/item-card";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getSignedImageUrls } from "@/lib/images/storage";
+import { getItemImageUrls } from "@/lib/images/storage";
 import { CATEGORY_PLURAL } from "@/lib/validation/item";
 
 export const metadata = { title: "Closet" };
@@ -32,8 +32,10 @@ export default async function CatalogPage(props: PageProps<"/catalog">) {
         brand: true,
         priceCents: true,
         status: true,
+        processingStatus: true,
         originalImageKey: true,
         processedImageKey: true,
+        thumbnailKey: true,
         _count: { select: { wearLogItems: true } },
       },
     }),
@@ -48,14 +50,11 @@ export default async function CatalogPage(props: PageProps<"/catalog">) {
   const counts = new Map(grouped.map((row) => [row.category, row._count._all]));
   const total = grouped.reduce((sum, row) => sum + row._count._all, 0);
 
-  // One batched call rather than one per item — a few hundred round trips would
-  // dominate the page render.
-  const urls = await getSignedImageUrls(
-    items.map((item) => item.processedImageKey ?? item.originalImageKey),
-  );
+  // Thumbnails in the grid: 256px renders instead of full-size ones, over a grid that
+  // never shows a tile wider than 240px.
+  const urls = await getItemImageUrls(items, "thumbnail");
 
   const cards: ItemCardData[] = items.map((item) => {
-    const key = item.processedImageKey ?? item.originalImageKey;
     return {
       id: item.id,
       name: item.name,
@@ -63,8 +62,9 @@ export default async function CatalogPage(props: PageProps<"/catalog">) {
       brand: item.brand,
       priceCents: item.priceCents,
       status: item.status,
+      processingStatus: item.processingStatus,
       wearCount: item._count.wearLogItems,
-      imageUrl: key ? (urls.get(key) ?? null) : null,
+      imageUrl: urls.get(item.id) ?? null,
     };
   });
 
