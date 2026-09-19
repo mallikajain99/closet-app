@@ -1,3 +1,4 @@
+import { CATEGORY_EXTENT } from "@/lib/images/normalize";
 import type { Category, Slot } from "@prisma/client";
 
 /**
@@ -57,11 +58,23 @@ export function byPaintOrder<T extends { category: Category }>(items: readonly T
  *
  * Returned as percentages rather than pixels so the same outfit renders identically at
  * any size — a 200px card in the outfit list and a 600px builder preview.
+ *
+ * The box is deliberately *larger* than the garment should be. A stored render is a
+ * square canvas with the garment occupying only `CATEGORY_EXTENT[category].height` of
+ * it, and `object-contain` scales the whole canvas — so sizing the box to the target
+ * renders the garment at target × canvas-fill instead. Dividing by the fill undoes it.
+ *
+ * Without this the error compounds worst where the fill is smallest: shoes came out at
+ * 0.083 × 0.62 ≈ 5% of the figure instead of 8.3%, which read as a speck under a
+ * full-size cardigan. The server-side calibration script doesn't need the correction
+ * because it trims each render to the garment's own bounds before scaling.
  */
 export function layoutStyle(category: Category) {
   const { height, centre } = CATEGORY_SLOT[category];
+  const boxHeight = height / CATEGORY_EXTENT[category].height;
+
   return {
-    top: `${(centre - height / 2) * 100}%`,
-    height: `${height * 100}%`,
+    top: `${(centre - boxHeight / 2) * 100}%`,
+    height: `${boxHeight * 100}%`,
   };
 }
