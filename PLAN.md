@@ -1,7 +1,7 @@
 # Digital Closet Manager — Implementation Plan
 
-**Status:** Phases 0, 1 and 2 complete. The catalog is background-removed and visually uniform; new items process themselves. Phase 2.5 (mannequin calibration) is next and needs decision 5 — the mannequin asset — resolved first
-**Last updated:** 2026-09-17
+**Status:** Phases 0, 1, 2 and 2.5 complete. The catalog is background-removed and visually uniform, new items process themselves, and real garments composite at the correct scale and position. The mannequin figure is deferred as an optional back layer (decision 5) — **no open decision gates Phase 3 or Phase 4**. Phase 3 (browse & filter) is next. The one real gap is that the catalog holds only tops and outerwear, so the lower half of the composite geometry stays unvalidated until bottoms and shoes are photographed
+**Last updated:** 2026-09-18
 **Companion doc:** [closet_app_feature_spec.md](./closet_app_feature_spec.md)
 
 > This plan and the feature spec are kept in sync. Any change to requirements should be
@@ -102,6 +102,15 @@ which is the single implementation shared by the Server Actions and the backfill
 3. **Normalize** — `sharp`, locally, no API cost: trim transparent edges → scale to a
    **per-category** target box (a shoe must not render as tall as a coat) → center on a fixed
    1024×1024 transparent canvas → WebP, plus a 256px thumbnail. The grid loads thumbnails.
+
+**The outfit composite needs its own geometry, separate from the grid's.** `CATEGORY_EXTENT`
+above is tuned so a garment fills its catalog tile, which gives outerwear 78% of the canvas
+height. On a body a blazer covers shoulders to hips — about 43%. Reusing the grid numbers in
+the composite renders a jacket that swallows the entire figure, which is what the first
+calibration render showed. `COMPOSITE_GEOMETRY` in `scripts/outfit-preview.ts` holds the
+body-relative height and centre per category; `Item.layoutScale` / `layoutOffset` override it
+per item. The stored render is the garment padded to the full canvas, so the composite trims
+back to the garment's own bounds before rescaling — otherwise the padding is what gets scaled.
 
 Both `original_image_key` and `processed_image_key` are stored, plus `thumbnail_key` and a
 `processing_status`. **The two image keys live in different buckets** (`closet-originals` and
@@ -319,7 +328,7 @@ shape the later phases.
 | **0 — Foundation** ✅ **done** *(deploy pending)* | Next.js + Tailwind + theme tokens, full Prisma schema migrated to Supabase (11 tables, 6 enums), storage buckets, magic-link auth via `proxy.ts` + `lib/auth.ts`, pure-function core with 51 tests. Remaining: Vercel deploy (see `SETUP.md` Part 3) | ✅ App is live locally and login works |
 | **1 — Catalog (raw)** ✅ **done** | Photo/screenshot upload → storage, item metadata form, tags, grid view, detail, edit/delete, hanger/dress-form guidance in the capture flow. **No image processing yet** | ✅ Live in production; real closet can be loaded in from a phone |
 | **2 — Image pipeline** ✅ **done** | Segmentation via Replicate with a clothing-mask gate for hangers, per-category normalization onto a 1024px canvas plus a 256px thumbnail, background processing on save via `after()` (no Inngest — see below), pending/failed badges, manual re-run and keep-original override, backfill of all 49 Phase-1 items | ✅ Catalog looks visually uniform |
-| **2.5 — Mannequin calibration** | Time-boxed ~1 day. Source or commission the neutral mannequin asset; composite ~10 real garments over it; tune per-category anchor boxes and shadow treatment until a full outfit reads correctly | The outfit visual is proven on real garments before the builder is built around it |
+| **2.5 — Composite calibration** ✅ **done** *(rescoped)* | Was "source the mannequin asset and tune around it". Became: establish the composite geometry, which is the part that actually matters. `COMPOSITE_GEOMETRY` in `scripts/outfit-preview.ts` scales and anchors each category **relative to the figure's own height**, so any figure — or none — works without retuning. Placeholder figure at `public/mannequin/placeholder.svg`; `--figures <dir>` compares candidates under real clothes, `--bare` renders stack-only. Tops and outerwear validated on real garments. **The mannequin asset is deferred** (decision 5) and no longer gates Phase 4. Outstanding: `BOTTOM`/`SHOE`/`HAT` geometry is unvalidated until the catalog has such items | ✅ Real garments composite at correct scale and position | Source or commission the neutral mannequin asset; composite ~10 real garments over it; tune per-category anchor boxes and shadow treatment until a full outfit reads correctly | The outfit visual is proven on real garments before the builder is built around it |
 | **3 — Browse & item detail** | Filters (category / color / brand / formality / sleeve), search, brand jump-through, item detail page *minus* wear stats | Catalog is genuinely navigable at ~100 items |
 | **4 — Outfit builder** | Mannequin-backed composite layout, per-slot carousels, live preview, per-item scale/offset adjustment, save / name / tag, signature + duplicate detection, edit-in-place (new `OutfitVersion`) + duplicate | Real outfits can be built and saved |
 | **5 — Wear tracking** | Log worn (today or backdated), outfits or loose items; **"add a past wear" on the item detail page** as a first-class action; **optional OOTD photo per wear** (option A); calendar month/week, image-first cells | Daily logging habit starts; occasion pieces can be corrected off the neglected list |
@@ -342,11 +351,12 @@ shape the later phases.
 | 1 | Outfit editing when wear history exists | **Edit in place, carry history forward.** Implemented via `OutfitVersion` so exact-combination stats (spec §3) remain accurate — see Data Model above | Resolved 2026-08-31 |
 | 2 | Supabase all-in-one vs. Neon + Cloudflare R2 + Clerk | **Supabase** — Postgres, Storage, and Auth in one project | Resolved 2026-08-31 |
 | 3 | Single-user vs. multi-profile at launch | **Single-user for now.** `user_id` on every table from day 1 keeps spec suggestion #10 a feature flag, not a migration | Resolved 2026-08-31 |
-| 4 | On-body rendering approach | **D (mannequin-backed layered composite).** Garment accuracy outranks on-body realism, which rules out generative approaches. A retained as an optional per-wear photo; B and C not planned | Resolved 2026-08-31 |
-| 5 | Mannequin asset — source or commission? | Needs one neutral, faceless, front-facing figure. Stock 3D render, illustration, or commissioned asset all work. Decide at Phase 2.5; not blocking before then | Open — gated to Phase 2.5 |
+| 4 | On-body rendering approach | **D (layered composite), amended 2026-09-18: the mannequin figure is an optional back layer, not the mechanism.** What makes an outfit read correctly is the composite geometry — garments scaled and anchored as if worn. The figure is a single layer behind that, and rendering it is one boolean (`--bare` in `scripts/outfit-preview.ts`). Garment accuracy still outranks on-body realism, so generative approaches remain ruled out; A retained as an optional per-wear photo; B and C not planned | Resolved 2026-08-31, amended 2026-09-18 |
+| 5 | Mannequin asset — source or commission? | **Deferred, and no longer blocking anything.** Judged against real renders on 2026-09-18: with one or two garments the figure adds little, and stack-only is arguably closer to the "let the clothes shine" design direction. The case that decides it is top + bottom + shoes, where a body fills the gaps between pieces — and that cannot be evaluated until such items exist in the catalog. Revisit then; a Vecteezy 3D mannequin is a viable candidate if wanted, subject to its attribution terms | Deferred 2026-09-18 — revisit when the catalog has bottoms and shoes |
 
-Decision 5 did not block Phases 0–2, all of which are now done — but Phase 2.5 is next, so it is
-the one thing standing between here and the outfit builder.
+No open decision blocks Phase 3 or Phase 4. Decision 5 was the last one gating the outfit
+builder, and deferring it removes that gate: the builder is built against the composite
+geometry, and a figure can be dropped in behind it later without touching the layout.
 
 ---
 
@@ -354,6 +364,8 @@ the one thing standing between here and the outfit builder.
 
 | Date | Change |
 |---|---|
+| 2026-09-18 | **Mannequin deferred; Phase 2.5 rescoped and closed.** Seeing real garments composited raised the right question — if the figure mostly hides behind the clothes, is it earning its complexity? Rendering the same outfit with and without it showed stack-only is cleaner and closer to the "let the clothes shine" design direction. The case that would justify a figure is top + bottom + shoes, where a body fills the gaps between pieces, and the catalog has nothing below the waist to test it with. Decisive point: the figure is a **single layer at the back** and the composite geometry is independent of it, so this is reversible at any time and costs nothing to defer — including the Vecteezy licence question. Decision 4 amended (the figure is an optional layer, not the mechanism), decision 5 deferred, Phase 2.5 closed on the geometry alone. **Nothing now gates Phase 3 or 4.** |
+| 2026-09-18 | **Phase 2.5 started with a placeholder figure.** Rather than sourcing an asset in the abstract, built a crude neutral silhouette and the calibration loop (`scripts/outfit-preview.ts`) to composite real garments over it. Two findings. (1) The composite needs geometry of its own — see §1.1 — because the grid's `CATEGORY_EXTENT` renders a blazer that covers the whole figure. (2) The figure must sit *inside* the clothes: a first silhouette with 278px shoulders showed grey poking out past a blazer, so it was narrowed to 220px against a size-M blazer's ~370px. Tops and outerwear now read correctly; the `BOTTOM`/`SHOE`/`HAT` geometry is unvalidated because the catalog holds only 33 tops and 16 outerwear. Decision 5 still open, but now decidable against something visible. |
 | 2026-09-17 | **Hanger removal reworked; catalog reprocessed.** The four renders flagged on 09-13 were never actually fixed — the algorithm change landed at 07:29 UTC on 09-14 but the newest render was from 05:25 UTC, so the fix was verified on a temp file and never written back. Reprocessing exposed that both existing approaches failed in opposite directions: the per-pixel mask gate punched holes through fabric (destroying a suede vest's rope toggles and a pale pinstripe top), while cropping above the garment left hanger bars catalog-wide. Replaced with island-based removal keyed on geometry rather than on the mask's per-pixel opinion — see §1.1 step 2 — plus a broader mask prompt (it had no word for "vest"), a wider gate to bridge thin collar bands, and a 25% safety valve. All 49 items reprocessed; no failures. Two sweaters shot on a display *stand* rather than a hanger drove the rule to be symmetric: support structure is anything reaching outside the garment's vertical extent, above or below. |
 | 2026-09-17 | **Phase 2 complete.** The pipeline moved out of the backfill script into `lib/images/pipeline.ts`, shared by the catalog Server Actions and `scripts/process-images.ts`. **Inngest dropped** — `after()` covers a single job type for a single user without adding a service; the script remains the retry path, and the catalog pages set `maxDuration` because `after()` work counts against the route's timeout. Added pending/failed badges and the two manual overrides (re-run, keep original as `OVERRIDDEN`, which bulk re-runs skip). Failure reasons are persisted on `ImageJob` and shown on the item detail page. **Bug found and fixed:** all 49 processed renders were invisible in the app — pages signed the processed key against the *originals* bucket, so every item silently fell back to "No photo". Reads now go through `getItemImageUrls`, which signs per bucket; item deletion had the same bug and was leaking renders and thumbnails. Spec §1 gains the background-processing and override guarantees. |
 | 2026-08-31 | Initial plan drafted from `closet_app_feature_spec.md` |

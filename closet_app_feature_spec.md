@@ -73,7 +73,7 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
 
 - **Visual "virtual mannequin" layout:**
   - Fixed vertical arrangement mimicking body position: hat/head accessory → top → outerwear layer (if applicable) → bottom → shoes, with bags/jewelry/other accessories positioned logically around the frame
-  - **A neutral digital mannequin figure is rendered behind the layered garments** (see §6, approach D), so exposed arms, neck, and legs fill the gaps between pieces and the outfit reads as occupying a body rather than as floating cutouts. The mannequin is a static rendered figure, not 3D geometry — garments are the user's real photographs layered over it with per-category anchor boxes and soft contact shadows
+  - **Garments are scaled and anchored as if worn** (see §6, approach D) — per-category anchor boxes sized against a nominal body, with soft contact shadows separating the layers, rather than cutouts stacked at arbitrary sizes. A neutral digital mannequin figure can be rendered behind them to fill the gaps between pieces with exposed arms, neck and legs; it is an optional back layer, deferred until the catalog has full head-to-toe outfits where those gaps appear
 - **Item selection UX:**
   - Horizontal scroll/carousel for each clothing slot (e.g., scroll through all tops, then scroll through all bottoms, then all shoes, then optional accessories/hats)
   - As the user scrolls/selects in each row, the mannequin-style preview updates live so they can see the full outfit assembled before saving
@@ -200,16 +200,24 @@ neutral 3D mannequins wearing clothes (Magnopus and similar) are produced this w
 constructed 3D garments, not photographs — which is why that exact look is not reachable from a
 photo-based catalog. Specialist, multi-person effort; not a feature of this app.
 
-**D. Mannequin-backed layered composite — the chosen direction (decided 2026-08-31).**
-Real garment cutouts are layered in correct z-order over a **neutral digital mannequin figure**
-rendered behind them, rather than floating against a blank background. The mannequin's exposed
-arms, neck, and legs fill the gaps between garments so the outfit reads as occupying a body.
+**D. Layered composite — the chosen direction (decided 2026-08-31; amended 2026-09-18).**
+Real garment cutouts are layered in correct z-order, scaled and anchored **as if worn** rather
+than stacked at arbitrary sizes.
+
+A neutral digital mannequin figure may be rendered behind them, and originally this was the
+mechanism. It isn't: the *geometry* is what makes an outfit read correctly, and the figure is a
+single optional layer behind it. Judged against real garments on 2026-09-18, a one- or
+two-piece outfit reads better without one — cleaner, and truer to the "let the clothes shine"
+direction in §5. A figure earns its place when an outfit has gaps to fill (top + bottom +
+shoes, where exposed arms, neck and legs bridge the pieces), so the decision is deferred until
+the catalog contains those. Turning it on is one layer, not a rework.
 
   - **Garments stay pixel-accurate** — they remain the user's own processed photographs, never
     regenerated or redrawn. This is the deciding requirement: accurate clothes matter more than
     being shown on a likeness of the user
-  - Per-category **anchor boxes** calibrated to the mannequin's proportions position and scale each
-    garment; soft contact shadows between layers separate top from bottom from outerwear
+  - Per-category **anchor boxes** position and scale each garment, expressed relative to a
+    nominal body height so the same geometry holds with or without a figure drawn; soft contact
+    shadows between layers separate top from bottom from outerwear
   - **Per-item manual adjustment:** the user can nudge an item's scale and offset once; the
     adjustment is stored on the item and applies in every outfit containing it. This handles
     long-tail pieces (dusters, crop tops, oversized outerwear) that generic category anchors place

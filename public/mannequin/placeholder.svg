@@ -1,0 +1,76 @@
+<!--
+  Placeholder mannequin figure for Phase 2.5 calibration.
+
+  Deliberately crude and deliberately neutral: this exists to test whether the composite
+  geometry lands garments at the right height and scale on a body, not to be the final
+  asset (PLAN.md decision 5 is still open).
+
+  Proportioned to the 1024px garment canvas — head top at 0.05, shoulders at 0.20, waist
+  at 0.42, hips at 0.56, feet at 0.90 — so the fractions in COMPOSITE_GEOMETRY
+  (scripts/outfit-preview.ts) map onto real anatomy.
+
+  Shoulders span 220px against a size-M blazer's ~370px, because the figure must sit
+  *inside* the clothes: a first attempt was broad enough that grey shoulders poked out
+  past the jacket. Arms are held clear of the torso so a sleeve has a gap to read
+  against.
+
+  Flat warm grey rather than a skin tone: a placeholder should not quietly become a
+  decision about who this figure represents.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <g fill="#cfc9c0">
+    <!-- Head -->
+    <ellipse cx="512" cy="112" rx="46" ry="58" />
+
+    <!-- Neck -->
+    <path d="M 494 158 h 36 v 46 h -36 z" />
+
+    <!-- Torso: shoulders y=205, waist y=430, hips y=575. -->
+    <path d="M 512 200
+             C 552 200 596 212 618 234
+             C 622 270 606 342 592 402
+             C 585 442 588 520 596 566
+             C 564 584 460 584 428 566
+             C 436 520 439 442 432 402
+             C 418 342 402 270 406 234
+             C 428 212 472 200 512 200 Z" />
+
+    <!-- Arms, held clear of the torso so a sleeve edge has something to read against. -->
+    <path d="M 410 232
+             C 392 248 380 288 374 336
+             C 368 390 366 470 366 544
+             C 366 558 394 558 394 544
+             C 395 470 400 394 406 346
+             C 411 302 420 262 428 244 Z" />
+    <path d="M 614 232
+             C 632 248 644 288 650 336
+             C 656 390 658 470 658 544
+             C 658 558 630 558 630 544
+             C 629 470 624 394 618 346
+             C 613 302 604 262 596 244 Z" />
+
+    <!-- Hands -->
+    <ellipse cx="380" cy="572" rx="16" ry="26" />
+    <ellipse cx="644" cy="572" rx="16" ry="26" />
+
+    <!-- Legs: hips y=575 to ankles y=878. -->
+    <path d="M 430 566
+             C 462 578 500 578 506 566
+             C 508 636 506 722 502 794
+             C 500 832 497 860 496 878
+             h -54
+             C 440 860 437 832 434 794
+             C 428 722 428 636 430 566 Z" />
+    <path d="M 594 566
+             C 562 578 524 578 518 566
+             C 516 636 518 722 522 794
+             C 524 832 527 860 528 878
+             h 54
+             C 584 860 587 832 590 794
+             C 596 722 596 636 594 566 Z" />
+
+    <!-- Feet: centred on y=900, near the SHOE anchor. -->
+    <path d="M 442 878 h 54 c 3 18 8 30 8 40 h -76 c 0 -11 8 -23 14 -40 z" />
+    <path d="M 528 878 h 54 c 6 17 13 29 13 40 h -76 c 0 -10 6 -22 9 -40 z" />
+  </g>
+</svg>
