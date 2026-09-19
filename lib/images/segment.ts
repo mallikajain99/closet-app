@@ -23,7 +23,13 @@ const MODEL = "851-labs/background-remover";
  * salient-object segmentation otherwise keeps as part of the subject.
  */
 const MASK_MODEL = "schananas/grounded_sam";
-const MASK_PROMPT = "shirt,clothing,garment,jacket,sweater";
+/**
+ * Broad on purpose. A garment the vocabulary has no word for comes back with a weak
+ * mask — "vest" was absent and the suede waistcoat masked so poorly that its rope
+ * toggles read as non-clothing.
+ */
+const MASK_PROMPT =
+  "shirt,blouse,top,vest,waistcoat,clothing,garment,jacket,blazer,coat,cardigan,sweater,knitwear";
 /**
  * Deliberately narrow. An earlier version included "hook,wire", which ate the rope
  * toggles off a suede vest — the model is right that a rope loop is hook-like. Only the
@@ -253,23 +259,13 @@ async function clothingMask(source: Buffer): Promise<Buffer> {
 }
 
 /**
- * The first row of the image containing a meaningful amount of clothing.
+ * Read a mask as one byte per pixel, at the cutout's dimensions.
  *
- * Two earlier approaches failed here. Gating the alpha per-pixel by the clothing mask
- * punched holes straight through garments wherever the hanger crossed them — a gap at a
- * cardigan's neck, toggles eaten off a vest — because the hanger genuinely isn't
- * clothing and the mask says so. Filling those holes first needed pixel indexing, which
- * I got wrong twice.
- *
- * This does the one thing actually required. The hanger's hook sits entirely *above* the
- * garment, so finding the garment's top edge and clearing everything above it removes
- * the hook without touching a single pixel of the garment. Holes are impossible by
- * construction.
- *
- * The hanger bar behind an open collar survives, but no masking approach removes that —
- * it is genuinely visible through the fabric's own opening.
+ * `info.channels` is read back rather than assumed: `.greyscale()` does not guarantee a
+ * single-channel raw buffer, and indexing a 3-channel buffer as if it were 1-channel is
+ * what produced the striped and translucent results in two earlier attempts at this.
  */
-async function clothingTopRow(mask: Buffer, width: number, height: number) {
+async function readMask(mask: Buffer, width: number, height: number) {
   const { data, info } = await sharp(mask)
     .resize(width, height, { fit: "fill" })
     .greyscale()
@@ -277,20 +273,268 @@ async function clothingTopRow(mask: Buffer, width: number, height: number) {
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  // A row counts as clothing once enough of it is opaque, so a stray speck of noise or
-  // a sliver of misclassified hanger doesn't set the boundary.
-  const minRunPixels = Math.max(8, Math.round(info.width * 0.02));
+  const bits = new Uint8Array(info.width * info.height);
+  for (let i = 0; i < bits.length; i += 1) {
+    bits[i] = data[i * info.channels] >= 128 ? 1 : 0;
+  }
 
-  for (let y = 0; y < info.height; y += 1) {
+  return { bits, width: info.width, height: info.height };
+}
+
+/**
+ * Fill the mask's interior holes — the crux of the whole problem.
+ *
+ * Where a hanger crosses a garment, the clothing mask has a hole punched in it, and
+ * gating the cutout by it pushes that hole straight through the fabric: a gap at a
+ * cardigan's neck, toggles eaten off a suede vest. But the gate only needs to say
+ * *where clothing is*; the crisp alpha already supplies the actual shape. So any
+ * enclosed gap can be filled without consequence — filling only ever means "don't
+ * erase here", and wherever the garment genuinely has an opening the crisp alpha is
+ * already transparent.
+ *
+ * Interior is defined by reachability: flood the background inward from the border, and
+ * any unlit background pixel is enclosed by clothing and therefore a hole.
+ */
+function fillInteriorHoles(bits: Uint8Array, width: number, height: number) {
+  const outside = new Uint8Array(width * height);
+  const stack: number[] = [];
+
+  const visit = (index: number) => {
+    if (bits[index] || outside[index]) return;
+    outside[index] = 1;
+    stack.push(index);
+  };
+
+  for (let x = 0; x < width; x += 1) {
+    visit(x);
+    visit((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y += 1) {
+    visit(y * width);
+    visit(y * width + width - 1);
+  }
+
+  while (stack.length > 0) {
+    const index = stack.pop()!;
+    const x = index % width;
+    const y = (index - x) / width;
+    if (x > 0) visit(index - 1);
+    if (x < width - 1) visit(index + 1);
+    if (y > 0) visit(index - width);
+    if (y < height - 1) visit(index + width);
+  }
+
+  const filled = new Uint8Array(width * height);
+  for (let i = 0; i < filled.length; i += 1) {
+    filled[i] = bits[i] || !outside[i] ? 1 : 0;
+  }
+  return filled;
+}
+
+/**
+ * Grow the gate outwards by roughly `sigma` pixels.
+ *
+ * The prompted mask traces the garment loosely and often lands a few pixels inside the
+ * true edge, which would shave a collar or a cuff. Blur-then-threshold is a dilation
+ * without hand-rolled morphology: blurring bleeds coverage outwards and a low threshold
+ * keeps everything it bled into.
+ */
+async function growGate(filled: Uint8Array, width: number, height: number, sigma: number) {
+  const gray = Buffer.alloc(width * height);
+  for (let i = 0; i < gray.length; i += 1) gray[i] = filled[i] ? 255 : 0;
+
+  const { data, info } = await sharp(gray, { raw: { width, height, channels: 1 } })
+    .blur(sigma)
+    .threshold(40)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const gate = new Uint8Array(width * height);
+  for (let i = 0; i < gate.length; i += 1) {
+    gate[i] = data[i * info.channels] >= 128 ? 255 : 0;
+  }
+  return gate;
+}
+
+/** Per-pixel alpha of the crisp cutout, one byte per pixel. */
+async function readAlpha(cutout: Buffer) {
+  const { data, info } = await sharp(cutout)
+    .ensureAlpha()
+    .extractChannel(3)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const alpha = new Uint8Array(info.width * info.height);
+  for (let i = 0; i < alpha.length; i += 1) {
+    alpha[i] = data[i * info.channels];
+  }
+  return alpha;
+}
+
+/**
+ * Erase only the non-clothing regions that begin *above* the garment.
+ *
+ * Treating "not clothing" as "erase" is what kept damaging garments: the mask misses
+ * rope trim, a pale pinstripe, the inside of a lapel, and the gate then bites a hole
+ * wherever it was wrong. Hole-filling covers enclosed gaps but not an opening that runs
+ * to the hem — a vest's front placket connects straight to the outside background, so
+ * anything crossing it was still erased.
+ *
+ * What is reliably true is the geometry: whatever holds a garment up sits *outside* it —
+ * a hanger above, a display stand below. So each non-clothing island is kept or erased
+ * as a whole, by whether it reaches beyond the garment's vertical extent. A hook and its
+ * bar are one connected island reaching above the top edge, so the bar goes too even
+ * though it overlaps the shoulders; a stand's pedestal reaches below the hem. Toggles,
+ * cuffs and plackets lie wholly between the two lines and are unreachable by
+ * construction.
+ *
+ * Returns the per-pixel alpha multiplier, and what fraction of the garment it erases.
+ */
+function eraseOutside(
+  alpha: Uint8Array,
+  gate: Uint8Array,
+  width: number,
+  height: number,
+  garmentTop: number,
+  garmentBottom: number,
+) {
+  const keep = new Uint8Array(alpha.length).fill(255);
+  const visited = new Uint8Array(alpha.length);
+  const candidate = (i: number) => alpha[i] >= 128 && gate[i] < 128;
+
+  let opaque = 0;
+  for (let i = 0; i < alpha.length; i += 1) if (alpha[i] >= 128) opaque += 1;
+
+  let erased = 0;
+
+  // Clear the *semi-transparent* pixels outside the garment. A white hanger on a pale
+  // backdrop comes back with partial alpha, so it is invisible to the island pass below
+  // — which only considers pixels more opaque than not — and survived as a ghost
+  // outline. Fully opaque pixels are left to that pass, which consults the gate before
+  // erasing: clearing these bands unconditionally bit a notch out of a cardigan collar
+  // whenever the coarse mask put the garment's top edge below the true one.
+  for (let i = 0; i < alpha.length; i += 1) {
+    const y = Math.floor(i / width);
+    if (y >= garmentTop && y <= garmentBottom) continue;
+    if (alpha[i] >= 128) continue;
+    keep[i] = 0;
+  }
+
+  for (let start = 0; start < alpha.length; start += 1) {
+    if (visited[start] || !candidate(start)) continue;
+
+    // Collect one island, tracking the highest row it reaches.
+    const island: number[] = [];
+    const stack = [start];
+    visited[start] = 1;
+    let minRow = height;
+    let maxRow = 0;
+
+    while (stack.length > 0) {
+      const index = stack.pop()!;
+      island.push(index);
+
+      const x = index % width;
+      const y = (index - x) / width;
+      if (y < minRow) minRow = y;
+      if (y > maxRow) maxRow = y;
+
+      const neighbours = [
+        x > 0 ? index - 1 : -1,
+        x < width - 1 ? index + 1 : -1,
+        y > 0 ? index - width : -1,
+        y < height - 1 ? index + width : -1,
+      ];
+      for (const n of neighbours) {
+        if (n < 0 || visited[n] || !candidate(n)) continue;
+        visited[n] = 1;
+        stack.push(n);
+      }
+    }
+
+    if (minRow >= garmentTop && maxRow <= garmentBottom) continue;
+
+    for (const index of island) {
+      if (keep[index] === 0) continue; // already cleared by the band above
+      keep[index] = 0;
+      erased += 1;
+    }
+  }
+
+  return { keep, erasedFraction: opaque === 0 ? 0 : erased / opaque };
+}
+
+/**
+ * The safety valve. On a pale garment against a pale backdrop the prompted mask can come
+ * back nearly empty — that is what reduced a grey pinstripe top to a handful of
+ * fragments. Erasing this much of the subject means the mask is not describing this
+ * garment, so it gets discarded rather than trusted.
+ */
+const MAX_ERASED_FRACTION = 0.25;
+
+/**
+ * The first row of the image containing a meaningful amount of clothing.
+ *
+ * The fallback for when the gate is untrustworthy. The hanger's hook sits entirely
+ * *above* the garment, so clearing everything above the garment's top edge removes the
+ * hook without touching a single pixel of the garment — holes are impossible by
+ * construction. It leaves the hanger's bar behind, which is why it isn't the default.
+ */
+function clothingTopRow(bits: Uint8Array, width: number, height: number) {
+  return clothingRow(bits, width, height, "top");
+}
+
+/**
+ * The first or last row containing a meaningful amount of clothing.
+ *
+ * A row counts as clothing once enough of it is opaque, so a stray speck of noise or a
+ * sliver of misclassified support structure doesn't set the boundary.
+ */
+function clothingRow(
+  bits: Uint8Array,
+  width: number,
+  height: number,
+  edge: "top" | "bottom",
+) {
+  const minRunPixels = Math.max(8, Math.round(width * 0.02));
+
+  for (let step = 0; step < height; step += 1) {
+    const y = edge === "top" ? step : height - 1 - step;
     let opaque = 0;
-    const rowStart = y * info.width;
-    for (let x = 0; x < info.width; x += 1) {
-      if (data[rowStart + x] >= 128) opaque += 1;
+    const rowStart = y * width;
+    for (let x = 0; x < width; x += 1) {
+      if (bits[rowStart + x]) opaque += 1;
     }
     if (opaque >= minRunPixels) return y;
   }
 
-  return 0;
+  return edge === "top" ? 0 : height - 1;
+}
+
+/** Erase the band above the garment, leaving the garment itself untouched. */
+async function clearAbove(cutout: Buffer, width: number, cutRow: number) {
+  if (cutRow <= 0) return cutout;
+
+  // `dest-out` erases wherever the overlay has coverage, so a fully opaque rectangle
+  // punches that band to transparent.
+  return sharp(cutout)
+    .composite([
+      {
+        input: {
+          create: {
+            width,
+            height: cutRow,
+            channels: 4,
+            background: { r: 0, g: 0, b: 0, alpha: 1 },
+          },
+        },
+        left: 0,
+        top: 0,
+        blend: "dest-out",
+      },
+    ])
+    .png()
+    .toBuffer();
 }
 
 /**
@@ -310,29 +554,53 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
   const { width, height } = await sharp(cutout).metadata();
   if (!width || !height) throw new Error("Could not read cutout dimensions.");
 
-  const topRow = await clothingTopRow(mask, width, height);
+  const { bits } = await readMask(mask, width, height);
+  const filled = fillInteriorHoles(bits, width, height);
+  // Generous. A thin feature the mask missed — a ribbed collar band, a cuff — otherwise
+  // reads as non-clothing, joins the hanger's island, and is erased along with it, which
+  // bit a notch out of a cardigan collar. Growing the gate bridges those gaps; the cost
+  // is a few pixels of hanger surviving where it runs close alongside the garment.
+  const gate = await growGate(filled, width, height, Math.max(3, height * 0.014));
+  const alpha = await readAlpha(cutout);
 
-  // Leave a small margin above the detected edge: the mask traces the garment loosely,
-  // and clipping a collar would be far worse than leaving a few pixels of hook.
-  const cutRow = Math.max(0, topRow - Math.round(height * 0.01));
-  if (cutRow <= 0) return cutout;
+  // The garment's top edge comes from the *grown* gate, so a loosely traced mask errs
+  // towards a higher line — which spares a collar at the cost of leaving a little hook.
+  const gateBits = new Uint8Array(gate.length);
+  for (let i = 0; i < gate.length; i += 1) gateBits[i] = gate[i] >= 128 ? 1 : 0;
+  const margin = Math.round(height * 0.01);
+  const garmentTop = Math.max(0, clothingRow(gateBits, width, height, "top") - margin);
+  const garmentBottom = Math.min(
+    height - 1,
+    clothingRow(gateBits, width, height, "bottom") + margin,
+  );
 
-  // Clear the band above the garment. `dest-out` erases wherever the overlay has
-  // coverage, so a fully opaque rectangle punches that band to transparent.
+  const { keep, erasedFraction } = eraseOutside(
+    alpha,
+    gate,
+    width,
+    height,
+    garmentTop,
+    garmentBottom,
+  );
+
+  // Fall back to the approach that cannot damage fabric, and accept the bar.
+  if (erasedFraction > MAX_ERASED_FRACTION) {
+    const topRow = clothingTopRow(bits, width, height);
+    return clearAbove(cutout, width, Math.max(0, topRow - Math.round(height * 0.01)));
+  }
+
+  // `dest-in` keeps the destination only where the overlay is opaque, so an RGBA overlay
+  // carrying the keep mask in its alpha channel erases the hanger while leaving every
+  // edge the cutout found intact.
+  const overlay = Buffer.alloc(width * height * 4);
+  for (let i = 0; i < keep.length; i += 1) overlay[i * 4 + 3] = keep[i];
+
   return sharp(cutout)
     .composite([
       {
-        input: {
-          create: {
-            width,
-            height: cutRow,
-            channels: 4,
-            background: { r: 0, g: 0, b: 0, alpha: 1 },
-          },
-        },
-        left: 0,
-        top: 0,
-        blend: "dest-out",
+        input: overlay,
+        raw: { width, height, channels: 4 },
+        blend: "dest-in",
       },
     ])
     .png()
