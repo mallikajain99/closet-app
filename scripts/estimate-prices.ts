@@ -47,9 +47,13 @@ const BRAND_TIER: Record<string, number> = {
   "abercrombie & fitch": 1.1,
   "ann taylor": 1.1,
   kasper: 1.1,
+  columbia: 1.0,
   "banana republic": 1.2,
   heartloom: 1.2,
   foxcroft: 1.3,
+  madewell: 1.3,
+  // Outdoor technical brands price well above high-street for the same garment type.
+  patagonia: 1.5,
   // Traditional Austrian/Bavarian outfitter — suede trachten pieces are not high-street.
   "berwin & wolff": 2.6,
 };
@@ -69,11 +73,29 @@ const GARMENT_BASE: Record<string, number> = {
   cardigan: 38,
   vest: 40,
   overshirt: 42,
+  sandals: 35,
+  flats: 40,
+  sneakers: 45,
+  heels: 55,
+  loafers: 55,
   jacket: 65,
+  boots: 70,
   blazer: 70,
+  coat: 90,
 };
 
-const CATEGORY_FALLBACK: Record<string, number> = { TOP: 28, OUTERWEAR: 55 };
+/** Every category needs one: without a SHOE entry, every shoe silently took the $30 default. */
+const CATEGORY_FALLBACK: Record<string, number> = {
+  TOP: 28,
+  BOTTOM: 35,
+  DRESS: 50,
+  OUTERWEAR: 55,
+  SHOE: 50,
+  HAT: 20,
+  BAG: 45,
+  JEWELRY: 25,
+  ACCESSORY: 25,
+};
 
 /** Fabric moves price more than almost anything else at the same brand. */
 const MATERIAL_FACTOR: Array<[string, number]> = [
@@ -85,6 +107,11 @@ const MATERIAL_FACTOR: Array<[string, number]> = [
   ["linen", 1.1],
   ["satin", 1.05],
   ["corduroy", 1.05],
+  ["puffer", 1.2],
+  // Named only so they aren't silently treated as a premium fabric by a later addition.
+  ["fleece", 1.0],
+  ["nylon", 1.0],
+  ["webbing", 0.9],
 ];
 
 function estimateDollars(item: {
@@ -102,7 +129,15 @@ function estimateDollars(item: {
   const material = String(
     ((item.attributes ?? {}) as Record<string, unknown>).material ?? "",
   ).toLowerCase();
-  const factor = MATERIAL_FACTOR.find(([word]) => material.includes(word))?.[1] ?? 1;
+
+  // Leather and suede are a premium on a garment and the default on a shoe — the shoe
+  // base prices already assume them. Applying the garment multiplier to footwear put
+  // Columbia hiking boots at $155 and plain suede sneakers at $80.
+  const premiumHide = /leather|suede/.test(material);
+  const factor =
+    item.category === "SHOE" && premiumHide
+      ? 1
+      : (MATERIAL_FACTOR.find(([word]) => material.includes(word))?.[1] ?? 1);
 
   // Round to the nearest $5 — false precision would imply a confidence these don't have.
   return Math.max(5, Math.round((base * tier * factor) / 5) * 5);
