@@ -95,6 +95,12 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
   - As the user scrolls/selects in each row, the mannequin-style preview updates live so they can see the full outfit assembled before saving
 - **Outfit saving & organization:**
   - Save assembled outfit as a named entity
+  - **Photos of the outfit worn.** An outfit can carry any number of full-body photos of the
+    user actually wearing it, added when the outfit is created or at any time afterwards. They
+    are the outfit's own gallery, not tied to a particular day, and the most recent one is what
+    the calendar falls back to for any day that outfit was worn (see §3). This is the practical
+    route to the "me in different poses" calendar the design direction asks for: photographing
+    an outfit once covers every future wear of it, rather than needing a photo each morning
   - Assign one or more categories/tags (e.g., "Work," "Date Night," "Going Out," "Gym")
   - Ability to edit a saved outfit later (swap out one piece) — **the outfit keeps its name, tags, and full wear history through the edit.** It remains the same outfit, not a new one; see the outfit identity rule in Feature 3 for how this interacts with exact-combination stats
   - Ability to duplicate an outfit as a starting point for a new one (the duplicate starts with a fresh, empty wear history)
@@ -108,6 +114,11 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
   - Mark an outfit (or individual items, if worn outside a saved outfit) as "worn today" — or backdate to a past date
   - **Retroactive wear logging is a first-class action, not an edge case.** Occasion pieces — a formal dress worn to a wedding last spring — are worn rarely and unpredictably. The user must be able to add a past wear date directly from an item's detail page (not only through the calendar), so genuinely-worn items can be corrected out of the neglected list. Adding a past wear updates last-worn date, lifetime count, and cost-per-wear exactly as a same-day log would
   - **Optional OOTD photo:** when logging a wear, optionally attach a full-body photo (e.g. a mirror selfie) of the outfit as actually worn. It runs through the same background-removal pipeline as catalog items and becomes the day's thumbnail in the calendar view. This is what produces the "same person in different poses" calendar aesthetic referenced in the design direction below — it is photographic, not rendered
+  - **What a calendar day shows, in order of preference:** (1) a photo attached to that
+    specific wear, (2) the most recent photo attached to the outfit that was worn, (3) the
+    garment cutouts. A per-wear photo wins because it is the only one that is genuinely a
+    record of *that day*; the outfit's latest photo is a good stand-in but may post-date the
+    wear it illustrates. Days of loose items with no outfit can only ever use (1) or (3)
 - **Calendar view:**
   - Each day shows a thumbnail/visual of the outfit worn (if any) — the OOTD photo when one was attached, otherwise the assembled mannequin-layout composite of the outfit's items
   - Month view and week view
