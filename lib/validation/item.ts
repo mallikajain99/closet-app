@@ -89,6 +89,45 @@ export const SEASON_LABELS: Record<Season, string> = {
   WINTER: "Winter",
 };
 
+/**
+ * Descriptive fields that only make sense for some categories.
+ *
+ * A handbag has no sleeve length and a necklace has no silhouette. Offering them anyway
+ * invites junk data that then shows up as a filter chip matching one nonsensical item,
+ * and it makes the form longer than it needs to be on a phone.
+ *
+ * The form hides an inapplicable field and the server drops any value for it, so a stale
+ * submission — or changing an item's category after the fact — can't leave a bag with a
+ * sleeve length attached.
+ */
+export type ConditionalField = "size" | "sleeveLength" | "silhouette";
+
+export const FIELD_CATEGORIES: Record<ConditionalField, readonly Category[]> = {
+  // Bags, jewelry and loose accessories are one-size things.
+  size: ["TOP", "BOTTOM", "DRESS", "OUTERWEAR", "SHOE", "HAT"],
+  sleeveLength: ["TOP", "DRESS", "OUTERWEAR"],
+  silhouette: ["TOP", "BOTTOM", "DRESS", "OUTERWEAR"],
+};
+
+/** With no category chosen yet, nothing is hidden — the form narrows as you pick. */
+export function fieldApplies(field: ConditionalField, category: Category | null | undefined) {
+  if (!category) return true;
+  return FIELD_CATEGORIES[field].includes(category);
+}
+
+/**
+ * Silhouette words worth offering per category.
+ *
+ * "Wide-leg" is meaningless on a blouse and "cropped" rarely helps on trousers. The list
+ * is still open — anything typed is kept — this only decides what gets suggested.
+ */
+export const SILHOUETTES_BY_CATEGORY: Partial<Record<Category, readonly string[]>> = {
+  TOP: ["fitted", "relaxed", "oversized", "boxy", "cropped", "longline", "wrap", "slim"],
+  OUTERWEAR: ["fitted", "relaxed", "oversized", "boxy", "cropped", "longline", "tailored"],
+  BOTTOM: ["straight", "wide-leg", "slim", "flared", "a-line", "tailored", "relaxed", "cropped"],
+  DRESS: ["fitted", "relaxed", "oversized", "a-line", "wrap", "straight", "longline", "tailored"],
+};
+
 /** Trim, then treat an empty string as absent — HTML forms submit "" for untouched fields. */
 const optionalText = z
   .string()
@@ -167,7 +206,10 @@ export function buildAttributes(
 ) {
   const attributes: Record<string, string | string[]> = {};
   const single = {
-    sleeveLength: input.sleeveLength,
+    // Dropped outright when the category has no sleeves, rather than trusted from the
+    // form: the field is hidden client-side, so anything arriving here is stale state
+    // or a hand-made request.
+    sleeveLength: fieldApplies("sleeveLength", input.category) ? input.sleeveLength : undefined,
     formality: input.formality,
     material: overrides.material ?? input.material,
     pattern: overrides.pattern ?? input.pattern,
@@ -177,7 +219,9 @@ export function buildAttributes(
     if (value) attributes[key] = value;
   }
 
-  if (input.silhouette.length > 0) attributes.silhouette = input.silhouette;
+  if (input.silhouette.length > 0 && fieldApplies("silhouette", input.category)) {
+    attributes.silhouette = input.silhouette;
+  }
 
   return attributes;
 }

@@ -10,7 +10,12 @@ import { PROCESSED_BUCKET } from "@/lib/images/storage.client";
 import { createSignedUpload, deleteImage } from "@/lib/images/storage";
 import { processItemImage } from "@/lib/images/pipeline";
 import { canonicalize, normalizeSize } from "@/lib/text";
-import { buildAttributes, itemInputSchema, type ItemInput } from "@/lib/validation/item";
+import {
+  buildAttributes,
+  fieldApplies,
+  itemInputSchema,
+  type ItemInput,
+} from "@/lib/validation/item";
 
 export type ActionResult =
   | { ok: true }
@@ -172,7 +177,8 @@ export async function createItem(
       category: input.category,
       subcategory: canonical.subcategory,
       brand: canonical.brand,
-      size: canonical.size,
+      // Cleared when the category has no sizes — see fieldApplies in lib/validation/item.
+      size: fieldApplies("size", input.category) ? canonical.size : null,
       colors: input.colors,
       seasons: input.seasons,
       priceCents: input.priceCents,
@@ -235,7 +241,8 @@ export async function updateItem(
       category: input.category,
       subcategory: canonical.subcategory,
       brand: canonical.brand,
-      size: canonical.size,
+      // Cleared when the category has no sizes — see fieldApplies in lib/validation/item.
+      size: fieldApplies("size", input.category) ? canonical.size : null,
       colors: input.colors,
       seasons: input.seasons,
       priceCents: input.priceCents,

@@ -18,8 +18,11 @@ import {
   CATEGORY_LABELS,
   FORMALITIES,
   SEASON_LABELS,
+  SILHOUETTES,
+  SILHOUETTES_BY_CATEGORY,
   SLEEVE_LENGTHS,
   STATUS_LABELS,
+  fieldApplies,
 } from "@/lib/validation/item";
 
 export type ItemFormValues = {
@@ -84,6 +87,26 @@ export function ItemForm({
   const summaryRef = useRef<HTMLDivElement>(null);
 
   /**
+   * Category drives which descriptive fields are shown, so it has to be state rather
+   * than an uncontrolled default. A hidden field is unmounted, not merely invisible, so
+   * nothing is submitted for it — the server drops stale values too, but this is what
+   * stops a bag being given a sleeve length in the first place.
+   */
+  const [category, setCategory] = useState<Category | "">(values.category ?? "");
+  const chosen = category || null;
+
+  // Suggest only the silhouettes that suit this category, while keeping anything the
+  // user has invented — the vocabulary stays open, this just curates the prompts.
+  const silhouetteOptions = (() => {
+    const vocabulary = chosen ? SILHOUETTES_BY_CATEGORY[chosen] : undefined;
+    if (!vocabulary) return silhouetteSuggestions;
+    const starters = new Set<string>(SILHOUETTES);
+    return silhouetteSuggestions.filter(
+      (value) => !starters.has(value) || vocabulary.includes(value),
+    );
+  })();
+
+  /**
    * Move to the problem after a rejected submit.
    *
    * The submit button sits below a long form, so on a phone the offending field is
@@ -139,7 +162,8 @@ export function ItemForm({
             <Select
               id="category"
               name="category"
-              defaultValue={values.category ?? ""}
+              value={category}
+              onChange={(event) => setCategory(event.target.value as Category)}
               required
               aria-invalid={Boolean(errors.category)}
             >
@@ -162,9 +186,11 @@ export function ItemForm({
             <Input id="brand" name="brand" defaultValue={values.brand ?? ""} />
           </Field>
 
-          <Field label="Size" htmlFor="size">
-            <Input id="size" name="size" defaultValue={values.size ?? ""} />
-          </Field>
+          {fieldApplies("size", chosen) && (
+            <Field label="Size" htmlFor="size">
+              <Input id="size" name="size" defaultValue={values.size ?? ""} />
+            </Field>
+          )}
         </Fieldset>
 
         <Fieldset
@@ -221,20 +247,22 @@ export function ItemForm({
             <ColorsInput defaultValue={values.colors ?? []} />
           </Field>
 
-          <Field label="Sleeve length" htmlFor="sleeveLength">
-            <Select
-              id="sleeveLength"
-              name="sleeveLength"
-              defaultValue={attributes.sleeveLength ?? ""}
-            >
-              <option value="">—</option>
-              {SLEEVE_LENGTHS.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {fieldApplies("sleeveLength", chosen) && (
+            <Field label="Sleeve length" htmlFor="sleeveLength">
+              <Select
+                id="sleeveLength"
+                name="sleeveLength"
+                defaultValue={attributes.sleeveLength ?? ""}
+              >
+                <option value="">—</option>
+                {SLEEVE_LENGTHS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
 
           <Field label="Formality" htmlFor="formality">
             <Select id="formality" name="formality" defaultValue={attributes.formality ?? ""}>
@@ -255,19 +283,22 @@ export function ItemForm({
             <Input id="pattern" name="pattern" defaultValue={attributes.pattern ?? ""} />
           </Field>
 
-          <div className="sm:col-span-2">
-            <p className="label text-ink-subtle">Silhouette</p>
-            <p className="mb-2 mt-1 text-meta text-ink-subtle">
-              A piece can be several at once — cropped and boxy.
-            </p>
-            <ChipListInput
-              name="silhouette"
-              label="Add a silhouette"
-              placeholder="cropped, oversized…"
-              defaultValue={values.silhouette ?? []}
-              suggestions={silhouetteSuggestions}
-            />
-          </div>
+          {fieldApplies("silhouette", chosen) && (
+            <div className="sm:col-span-2">
+              <p className="label text-ink-subtle">Silhouette</p>
+              <p className="mb-2 mt-1 text-meta text-ink-subtle">
+                A piece can be several at once — cropped and boxy.
+              </p>
+              <ChipListInput
+                key={chosen ?? "any"}
+                name="silhouette"
+                label="Add a silhouette"
+                placeholder="cropped, oversized…"
+                defaultValue={values.silhouette ?? []}
+                suggestions={silhouetteOptions}
+              />
+            </div>
+          )}
 
           <div className="sm:col-span-2">
             <p className="label text-ink-subtle">Season</p>

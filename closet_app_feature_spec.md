@@ -41,7 +41,12 @@ A personal wardrobe management app that catalogs clothing/shoes, lets the user b
   - **The user can override the result.** Any item can have its cutout re-run, or can be
     told to keep the original photo instead. Keeping the original is a permanent choice
     that later bulk re-runs leave alone.
-- **Item metadata (manually entered or inferred):**
+- **Item metadata (manually entered or inferred).** Fields that don't apply to a category are
+  not offered: a handbag has no sleeve length, a necklace has no silhouette, and neither has a
+  size. The form hides them as soon as a category is chosen, and the server drops any value for
+  an inapplicable field — so changing an item's category later can't leave a stale attribute
+  attached. Silhouette *suggestions* are also category-specific ("wide-leg" for bottoms, not
+  blouses), though the vocabulary stays open to anything typed.
   - Category (top, bottom, dress, outerwear, shoe, hat, accessory, etc.)
   - Subcategory (t-shirt, blouse, jeans, sneakers, heels, etc.)
   - Color(s)
