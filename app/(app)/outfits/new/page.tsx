@@ -22,6 +22,8 @@ export default async function NewOutfitPage() {
         id: true,
         name: true,
         category: true,
+        subcategory: true,
+        colors: true,
         originalImageKey: true,
         processedImageKey: true,
         thumbnailKey: true,
@@ -40,6 +42,8 @@ export default async function NewOutfitPage() {
         id: item.id,
         name: item.name,
         category: item.category,
+        subcategory: item.subcategory,
+        colors: item.colors,
         imageUrl: urls.get(item.id) ?? null,
       }));
   }

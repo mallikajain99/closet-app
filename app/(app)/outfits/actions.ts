@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { defaultOutfitName } from "@/lib/outfits/name";
 import { outfitSignature } from "@/lib/outfits/signature";
 import { CATEGORY_SLOT } from "@/lib/outfits/slots";
 import { canonicalize } from "@/lib/text";
@@ -33,17 +34,21 @@ export async function createOutfit(
     .map((value) => String(value).trim())
     .filter(Boolean);
 
-  if (!name) return { ok: false, message: "Give the outfit a name." };
   if (itemIds.length === 0) return { ok: false, message: "Pick at least one piece." };
 
   // Scope by userId so a guessed UUID can't pull another closet's items into an outfit.
   const items = await db.item.findMany({
     where: { id: { in: itemIds }, userId: user.id },
-    select: { id: true, category: true },
+    select: { id: true, category: true, subcategory: true, colors: true },
   });
   if (items.length !== itemIds.length) {
     return { ok: false, message: "One of those pieces is no longer in your closet." };
   }
+
+  // Naming is optional. It's the one part of saving an outfit the app can't infer well,
+  // and requiring it turns a two-tap action into a writing task — so a blank field falls
+  // back to the same suggestion the builder offers.
+  const finalName = name || defaultOutfitName(items);
 
   const signature = outfitSignature(items.map((item) => item.id));
 
@@ -91,7 +96,7 @@ export async function createOutfit(
   const outfit = await db.outfit.create({
     data: {
       userId: user.id,
-      name,
+      name: finalName,
       tags: { create: tags.map((tag) => ({ tagId: tag.id })) },
       versions: {
         create: {

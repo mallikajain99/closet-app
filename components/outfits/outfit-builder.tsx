@@ -4,8 +4,9 @@ import Image from "next/image";
 import { useActionState, useMemo, useState } from "react";
 
 import type { OutfitResult } from "@/app/(app)/outfits/actions";
-import { OutfitFigure, type FigureItem } from "@/components/outfits/outfit-figure";
+import { OutfitFigure } from "@/components/outfits/outfit-figure";
 import { ChipListInput } from "@/components/ui/chip-list-input";
+import { suggestOutfitNames } from "@/lib/outfits/name";
 import { BUILDER_SLOTS } from "@/lib/outfits/slots";
 import type { Category, Slot } from "@prisma/client";
 
@@ -13,6 +14,8 @@ export type PickableItem = {
   id: string;
   name: string;
   category: Category;
+  subcategory: string | null;
+  colors: string[];
   imageUrl: string | null;
 };
 
@@ -37,9 +40,23 @@ export function OutfitBuilder({
   const [chosen, setChosen] = useState<Partial<Record<Slot, PickableItem>>>({});
 
   const selected = useMemo(
-    () => Object.values(chosen).filter(Boolean) as FigureItem[],
+    () => Object.values(chosen).filter(Boolean) as PickableItem[],
     [chosen],
   );
+
+  const suggestions = useMemo(() => suggestOutfitNames(selected), [selected]);
+
+  /**
+   * The name follows the selection until the user takes it over.
+   *
+   * Tracked with a flag rather than by comparing against the current suggestion: once
+   * someone has typed their own name, changing a piece must not overwrite it, and a
+   * name that merely happens to match a suggestion shouldn't be treated as untouched.
+   * Clearing the field hands control back.
+   */
+  const [name, setName] = useState("");
+  const [edited, setEdited] = useState(false);
+  const value = edited ? name : (suggestions[0] ?? "");
 
   const toggle = (slot: Slot, item: PickableItem) =>
     setChosen((current) => ({
@@ -124,15 +141,44 @@ export function OutfitBuilder({
 
         <section className="border-t border-line pt-6">
           <label htmlFor="name" className="label text-ink-subtle">
-            Name
+            Name <span className="text-ink-subtle">(optional)</span>
           </label>
           <input
             id="name"
             name="name"
-            required
-            placeholder="Monday work"
+            value={value}
+            onChange={(event) => {
+              setName(event.target.value);
+              // An emptied field goes back to following the selection.
+              setEdited(event.target.value.trim().length > 0);
+            }}
+            placeholder={suggestions[0] ?? "Monday work"}
             className="mt-2 w-full border border-line-strong bg-surface px-4 py-3 text-ink placeholder:text-ink-subtle focus:border-ink focus:outline-none"
           />
+
+          {suggestions.length > 1 && (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {suggestions.map((suggestion) => (
+                <li key={suggestion}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setName(suggestion);
+                      setEdited(true);
+                    }}
+                    aria-pressed={value === suggestion}
+                    className={`label border px-3 py-1.5 transition-colors ${
+                      value === suggestion
+                        ? "border-ink bg-ink text-canvas"
+                        : "border-line-strong text-ink-muted hover:border-ink hover:text-ink"
+                    }`}
+                  >
+                    {suggestion}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
 
           <div className="mt-6">
             <p className="label text-ink-subtle">Tags</p>
