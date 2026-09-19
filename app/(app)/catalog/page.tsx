@@ -1,29 +1,26 @@
-import { Category } from "@prisma/client";
 import Link from "next/link";
 
+import { CatalogSearch } from "@/components/catalog/catalog-search";
 import { CategoryFilter } from "@/components/catalog/category-filter";
+import { FacetFilters, type FacetGroup } from "@/components/catalog/facet-filters";
 import { ItemCard, type ItemCardData } from "@/components/catalog/item-card";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
+import { activeFilterCount, buildWhere, parseFilters } from "@/lib/items/filters";
+import { countFacets } from "@/lib/items/facets";
 import { CATEGORY_PLURAL } from "@/lib/validation/item";
 
 export const metadata = { title: "Closet" };
 
-/** Ignore an unrecognised ?category= rather than erroring — a stale link should still load. */
-function parseCategory(value: string | string[] | undefined): Category | null {
-  if (typeof value !== "string") return null;
-  return value in Category ? (value as Category) : null;
-}
-
 export default async function CatalogPage(props: PageProps<"/catalog">) {
   const searchParams = await props.searchParams;
-  const active = parseCategory(searchParams.category);
+  const filters = parseFilters(searchParams);
   const user = await requireUser();
 
-  const [items, grouped] = await Promise.all([
+  const [items, facetRows] = await Promise.all([
     db.item.findMany({
-      where: { userId: user.id, ...(active ? { category: active } : {}) },
+      where: buildWhere(user.id, filters),
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -39,45 +36,54 @@ export default async function CatalogPage(props: PageProps<"/catalog">) {
         _count: { select: { wearLogItems: true } },
       },
     }),
-    // Counts come from the unfiltered set, so every chip keeps its number while filtered.
-    db.item.groupBy({
-      by: ["category"],
+    // Facet counts come from the *unfiltered* set, so every chip keeps its number while
+    // filtered and the rows don't reshuffle as you narrow. One query rather than a
+    // groupBy per facet: colours and the attribute fields aren't plain columns, and at
+    // catalog scale counting them in memory is cheaper than four round trips.
+    db.item.findMany({
       where: { userId: user.id },
-      _count: { _all: true },
+      select: { category: true, brand: true, colors: true, attributes: true },
     }),
   ]);
 
-  const counts = new Map(grouped.map((row) => [row.category, row._count._all]));
-  const total = grouped.reduce((sum, row) => sum + row._count._all, 0);
+  const { categories, brands, colors, formalities, sleeves } = countFacets(facetRows);
+  const total = facetRows.length;
+
+  const groups: FacetGroup[] = [
+    { key: "brand", label: "Brand", values: brands },
+    { key: "color", label: "Colour", values: colors },
+    { key: "formality", label: "Formality", values: formalities },
+    { key: "sleeve", label: "Sleeve", values: sleeves },
+  ];
 
   // Thumbnails in the grid: 256px renders instead of full-size ones, over a grid that
   // never shows a tile wider than 240px.
   const urls = await getItemImageUrls(items, "thumbnail");
 
-  const cards: ItemCardData[] = items.map((item) => {
-    return {
-      id: item.id,
-      name: item.name,
-      category: item.category,
-      brand: item.brand,
-      priceCents: item.priceCents,
-      status: item.status,
-      processingStatus: item.processingStatus,
-      wearCount: item._count.wearLogItems,
-      imageUrl: urls.get(item.id) ?? null,
-    };
-  });
+  const cards: ItemCardData[] = items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    brand: item.brand,
+    priceCents: item.priceCents,
+    status: item.status,
+    processingStatus: item.processingStatus,
+    wearCount: item._count.wearLogItems,
+    imageUrl: urls.get(item.id) ?? null,
+  }));
+
+  const narrowed = activeFilterCount(filters) > 0;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-12">
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <h1 className="text-3xl font-light tracking-tight">
-            {active ? CATEGORY_PLURAL[active] : "Closet"}
+            {filters.category ? CATEGORY_PLURAL[filters.category] : "Closet"}
           </h1>
           <p className="mt-1 text-meta text-ink-subtle">
             {items.length} {items.length === 1 ? "item" : "items"}
-            {active && total > items.length && (
+            {narrowed && total > items.length && (
               <span className="text-ink-subtle"> of {total}</span>
             )}
           </p>
@@ -90,23 +96,13 @@ export default async function CatalogPage(props: PageProps<"/catalog">) {
         </Link>
       </div>
 
-      <CategoryFilter counts={counts} active={active} total={total} />
+      <CatalogSearch filters={filters} />
+      <CategoryFilter counts={categories} filters={filters} total={total} />
+      <FacetFilters groups={groups} filters={filters} />
 
       {cards.length === 0 ? (
-        <div className="border-t border-line py-24 text-center">
-          {active ? (
-            <>
-              <p className="text-xl font-light">
-                Nothing in {CATEGORY_PLURAL[active].toLowerCase()} yet.
-              </p>
-              <Link
-                href="/catalog"
-                className="label mt-4 inline-block text-ink-subtle underline underline-offset-4 hover:text-ink"
-              >
-                See everything
-              </Link>
-            </>
-          ) : (
+        <div className="py-24 text-center">
+          {total === 0 ? (
             <>
               <p className="text-xl font-light">Nothing here yet.</p>
               <p className="mx-auto mt-3 max-w-sm text-meta leading-relaxed text-ink-muted">
@@ -114,10 +110,28 @@ export default async function CatalogPage(props: PageProps<"/catalog">) {
                 cost-per-wear gets interesting soonest.
               </p>
             </>
+          ) : (
+            <>
+              <p className="text-xl font-light">
+                {filters.q ? (
+                  <>
+                    Nothing matches &ldquo;{filters.q}&rdquo;.
+                  </>
+                ) : (
+                  "Nothing matches those filters."
+                )}
+              </p>
+              <Link
+                href="/catalog"
+                className="label mt-4 inline-block text-ink-subtle underline underline-offset-4 hover:text-ink"
+              >
+                Clear filters
+              </Link>
+            </>
           )}
         </div>
       ) : (
-        <ul className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 border-t border-line pt-8 sm:grid-cols-3 lg:grid-cols-4">
+        <ul className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
           {cards.map((item) => (
             <ItemCard key={item.id} item={item} />
           ))}

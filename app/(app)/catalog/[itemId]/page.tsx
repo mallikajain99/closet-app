@@ -108,7 +108,15 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
 
         <div>
           <h1 className="text-3xl font-light tracking-tight">{item.name}</h1>
-          {item.brand && <p className="mt-1 text-ink-muted">{item.brand}</p>}
+          {/* Jump-through: the brand is the most common reason to want "more like this". */}
+          {item.brand && (
+            <Link
+              href={`/catalog?brand=${encodeURIComponent(item.brand)}`}
+              className="mt-1 inline-block text-ink-muted underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink"
+            >
+              {item.brand}
+            </Link>
+          )}
 
           <dl className="mt-8 flex gap-12 border-y border-line py-6">
             <div>
