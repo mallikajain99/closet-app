@@ -7,8 +7,10 @@ import {
   keepOriginalImage,
   reprocessItem,
 } from "@/app/(app)/catalog/actions";
+import { logItemWear, removeItemWear } from "@/app/(app)/wears/actions";
 import { DeleteItemButton } from "@/components/catalog/delete-item-button";
 import { ImageControls } from "@/components/catalog/image-controls";
+import { LogWear } from "@/components/wears/log-wear";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getItemImageUrl } from "@/lib/images/storage";
@@ -34,14 +36,28 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
 
   // The most recent job row carries the reason a cutout failed, so the page can say
   // more than "something went wrong".
-  const [imageUrl, job] = await Promise.all([
+  const [imageUrl, job, wears] = await Promise.all([
     getItemImageUrl(item),
     db.imageJob.findFirst({
       where: { subjectType: "ITEM", subjectId: item.id },
       orderBy: { createdAt: "desc" },
       select: { error: true },
     }),
+    db.wearLog.findMany({
+      where: { userId: user.id, items: { some: { itemId: item.id } } },
+      orderBy: { wornOn: "desc" },
+      take: 8,
+      select: { id: true, wornOn: true },
+    }),
   ]);
+
+  // Dates are stored as UTC midnight (see lib/validation/wear.ts), so they must be
+  // formatted in UTC too — rendering them locally would show the previous day west of
+  // Greenwich.
+  const dateLabel = (date: Date) =>
+    date.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" });
+
+  const lastWorn = wears[0]?.wornOn ?? null;
 
   const wearCount = item._count.wearLogItems;
   const cpw = costPerWearCents(item.priceCents, wearCount);
@@ -124,6 +140,9 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
             <div>
               <dt className="label text-ink-subtle">Lifetime wears</dt>
               <dd className="mt-1 text-3xl font-light tabular-nums">{wearCount}</dd>
+              <p className="mt-1 text-meta text-ink-subtle">
+                {lastWorn ? `Last worn ${dateLabel(lastWorn)}` : "Not worn yet"}
+              </p>
             </div>
             <div>
               <dt className="label text-ink-subtle">Cost per wear</dt>
@@ -168,6 +187,17 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
               Where it came from ↗
             </a>
           )}
+
+          <LogWear
+            today={new Date().toISOString().slice(0, 10)}
+            recent={wears.map((wear) => ({
+              id: wear.id,
+              wornOn: wear.wornOn.toISOString().slice(0, 10),
+              label: dateLabel(wear.wornOn),
+            }))}
+            action={logItemWear.bind(null, item.id)}
+            remove={removeItemWear.bind(null, item.id)}
+          />
 
           <div className="mt-10 flex items-center gap-6 border-t border-line pt-6">
             <Link

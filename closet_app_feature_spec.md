@@ -104,6 +104,7 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
 ## 3. Wear Tracking & Analytics
 
 - **Logging wear:**
+  - **A wear is a calendar day, not an event.** Logging the same item twice for one date does not count twice — a repeat tap joins that day. Otherwise cost-per-wear drifts down with every stray tap, and it is the number the app exists to report. Wears can be backdated freely but never forward-dated.
   - Mark an outfit (or individual items, if worn outside a saved outfit) as "worn today" — or backdate to a past date
   - **Retroactive wear logging is a first-class action, not an edge case.** Occasion pieces — a formal dress worn to a wedding last spring — are worn rarely and unpredictably. The user must be able to add a past wear date directly from an item's detail page (not only through the calendar), so genuinely-worn items can be corrected out of the neglected list. Adding a past wear updates last-worn date, lifetime count, and cost-per-wear exactly as a same-day log would
   - **Optional OOTD photo:** when logging a wear, optionally attach a full-body photo (e.g. a mirror selfie) of the outfit as actually worn. It runs through the same background-removal pipeline as catalog items and becomes the day's thumbnail in the calendar view. This is what produces the "same person in different poses" calendar aesthetic referenced in the design direction below — it is photographic, not rendered
