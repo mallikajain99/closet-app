@@ -18,36 +18,41 @@ export default async function CatalogPage(props: PageProps<"/catalog">) {
   const filters = parseFilters(searchParams);
   const user = await requireUser();
 
-  const [items, facetRows] = await Promise.all([
-    db.item.findMany({
-      where: buildWhere(user.id, filters),
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        name: true,
-        category: true,
-        brand: true,
-        priceCents: true,
-        status: true,
-        processingStatus: true,
-        originalImageKey: true,
-        processedImageKey: true,
-        thumbnailKey: true,
-        _count: { select: { wearLogItems: true } },
-      },
-    }),
-    // Facet counts come from the *unfiltered* set, so every chip keeps its number while
-    // filtered and the rows don't reshuffle as you narrow. One query rather than a
-    // groupBy per facet: colours and the attribute fields aren't plain columns, and at
-    // catalog scale counting them in memory is cheaper than four round trips.
-    db.item.findMany({
-      where: { userId: user.id },
-      select: { category: true, brand: true, colors: true, attributes: true },
-    }),
-  ]);
+  // Facet counts come from the *unfiltered* set, so every chip keeps its number while
+  // filtered and the rows don't reshuffle as you narrow. One query rather than a groupBy
+  // per facet: colours and the attribute fields aren't plain columns, and at catalog
+  // scale counting them in memory is cheaper than four round trips.
+  //
+  // It runs before the item query rather than alongside it because filtering by colour
+  // needs the written colours behind the chosen family, and those come from the closet's
+  // own vocabulary.
+  const facetRows = await db.item.findMany({
+    where: { userId: user.id },
+    select: { category: true, brand: true, colors: true, attributes: true },
+  });
 
   const { categories, brands, colors, formalities, sleeves } = countFacets(facetRows);
   const total = facetRows.length;
+
+  const colorMembers = colors.find((family) => family.value === filters.color)?.members ?? [];
+
+  const items = await db.item.findMany({
+    where: buildWhere(user.id, filters, colorMembers),
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      brand: true,
+      priceCents: true,
+      status: true,
+      processingStatus: true,
+      originalImageKey: true,
+      processedImageKey: true,
+      thumbnailKey: true,
+      _count: { select: { wearLogItems: true } },
+    },
+  });
 
   const groups: FacetGroup[] = [
     { key: "brand", label: "Brand", values: brands },

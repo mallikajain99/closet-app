@@ -67,7 +67,16 @@ export function activeFilterCount(filters: CatalogFilters) {
  * `formality` and `sleeveLength` live inside the attributes JSON rather than in their own
  * columns, so they filter by JSON path. `colors` is a Postgres array, hence `has`.
  */
-export function buildWhere(userId: string, filters: CatalogFilters): Prisma.ItemWhereInput {
+export function buildWhere(
+  userId: string,
+  filters: CatalogFilters,
+  /**
+   * The written colours belonging to the selected family — "espresso", "dark brown" and
+   * "brown" for `brown`. Resolved by the caller from the closet's own vocabulary, since
+   * the colour field is free text and the members cannot be known statically.
+   */
+  colorMembers: readonly string[] = [],
+): Prisma.ItemWhereInput {
   const and: Prisma.ItemWhereInput[] = [];
 
   if (filters.formality) {
@@ -90,7 +99,10 @@ export function buildWhere(userId: string, filters: CatalogFilters): Prisma.Item
     userId,
     ...(filters.category ? { category: filters.category } : {}),
     ...(filters.brand ? { brand: filters.brand } : {}),
-    ...(filters.color ? { colors: { has: filters.color } } : {}),
+    // `hasSome` because a family is several written colours; an empty member list means
+    // the family matched nothing in this closet, and should return nothing rather than
+    // silently ignoring the filter.
+    ...(filters.color ? { colors: { hasSome: colorMembers as string[] } } : {}),
     ...(and.length > 0 ? { AND: and } : {}),
   };
 }

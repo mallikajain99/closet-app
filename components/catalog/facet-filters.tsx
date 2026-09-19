@@ -9,7 +9,7 @@ import {
 export type FacetGroup = {
   key: TextFacet;
   label: string;
-  values: { value: string; count: number }[];
+  values: { value: string; count: number; label?: string; swatch?: string }[];
 };
 
 /**
@@ -48,12 +48,13 @@ export function FacetFilters({
           <div key={group.key}>
             <p className="label mb-2 text-ink-subtle">{group.label}</p>
             <ul className="flex flex-wrap gap-2">
-              {group.values.map(({ value, count }) => (
+              {group.values.map(({ value, count, label, swatch }) => (
                 <li key={value}>
                   <FilterChip
                     href={filterHref(filters, group.key, value)}
-                    label={value}
+                    label={label ?? value}
                     count={count}
+                    swatch={swatch}
                     active={filters[group.key] === value}
                   />
                 </li>

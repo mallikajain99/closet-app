@@ -11,15 +11,46 @@ const item = (
 ) => ({ category, brand, colors, attributes });
 
 describe("countFacets", () => {
-  it("counts every colour on an item, not just the first", () => {
+  it("groups written colours into families and counts every one on an item", () => {
     const { colors } = countFacets([
-      item("TOP", null, ["black", "white"]),
-      item("TOP", null, ["white"]),
+      item("TOP", null, ["black", "espresso"]),
+      item("TOP", null, ["dark brown"]),
     ]);
-    expect(colors).toEqual([
-      { value: "white", count: 2 },
-      { value: "black", count: 1 },
+    expect(colors.map((c) => [c.value, c.count])).toEqual([
+      ["brown", 2],
+      ["black", 1],
     ]);
+  });
+
+  it("counts an item once per family however many of its colours match", () => {
+    // "blue" and "light blue" is one blue garment, not two.
+    const { colors } = countFacets([item("TOP", null, ["blue", "light blue"])]);
+    expect(colors).toHaveLength(1);
+    expect(colors[0]).toMatchObject({ value: "blue", count: 1 });
+  });
+
+  it("reports the written colours behind each family, for the filter to query", () => {
+    const { colors } = countFacets([
+      item("TOP", null, ["espresso"]),
+      item("TOP", null, ["dark brown"]),
+    ]);
+    expect(colors[0].members.sort()).toEqual(["dark brown", "espresso"]);
+  });
+
+  it("keeps families in spectrum order rather than by count", () => {
+    const { colors } = countFacets([
+      item("TOP", null, ["black"]),
+      item("TOP", null, ["black"]),
+      item("TOP", null, ["black"]),
+      item("TOP", null, ["red"]),
+    ]);
+    expect(colors.map((c) => c.value)).toEqual(["red", "black"]);
+  });
+
+  it("buckets an unrecognised colour rather than losing it", () => {
+    const { colors } = countFacets([item("TOP", null, ["chartreuse-ish"])]);
+    expect(colors).toHaveLength(1);
+    expect(colors[0]).toMatchObject({ value: "other", count: 1 });
   });
 
   it("orders brands by frequency, then alphabetically to break ties", () => {

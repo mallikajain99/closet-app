@@ -54,6 +54,12 @@ A personal wardrobe management app that catalogs clothing/shoes, lets the user b
   - Custom freeform tags/categories (e.g. "work," "going out," "date," "favorite") — the same tag set used to categorize outfits, so an item can independently show which categories it's associated with
 - **Catalog browsing:**
   - Grid/gallery view, filterable by category, color, brand, tag, formality, sleeve length, etc.
+    - **Colour filters on families, not on the written colour.** Items keep the colour actually
+      typed — "espresso", "moss green", "oatmeal" — because that is the useful description on an
+      item page. As a filter it collapses: 49 items produced 28 distinct colours, most of them
+      appearing once, so nearly every chip matched a single garment. Filtering groups those into
+      about a dozen families shown with a colour swatch, while the specific colour is preserved
+      wherever it is displayed
   - Search bar (including search by brand)
 
 ### Item Detail View

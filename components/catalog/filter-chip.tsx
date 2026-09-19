@@ -13,11 +13,14 @@ export function FilterChip({
   label,
   count,
   active,
+  swatch,
 }: {
   href: string;
   label: string;
   count?: number;
   active: boolean;
+  /** Colour families carry a dot, so the row can be scanned by colour, not read. */
+  swatch?: string;
 }) {
   return (
     <Link
@@ -31,6 +34,18 @@ export function FilterChip({
           : "border-line-strong text-ink-muted hover:border-ink hover:text-ink",
       )}
     >
+      {swatch && (
+        <span
+          aria-hidden
+          // A ring rather than a bare dot: a white or cream swatch would otherwise be
+          // invisible against the chip, and inverted against the active chip's ink fill.
+          className={cn(
+            "size-3 shrink-0 rounded-full ring-1",
+            active ? "ring-canvas/40" : "ring-line-strong",
+          )}
+          style={{ backgroundColor: swatch }}
+        />
+      )}
       {label}
       {count !== undefined && (
         <span className={active ? "text-canvas/60" : "text-ink-subtle"}>{count}</span>
