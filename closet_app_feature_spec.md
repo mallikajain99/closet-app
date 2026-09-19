@@ -41,6 +41,11 @@ A personal wardrobe management app that catalogs clothing/shoes, lets the user b
   - **The user can override the result.** Any item can have its cutout re-run, or can be
     told to keep the original photo instead. Keeping the original is a permanent choice
     that later bulk re-runs leave alone.
+- **Typed text is normalized on save, whatever the casing.** Item titles become sentence case
+  with brand names left in their own spelling (COS, ba&sh) and letter-shape terms keeping their
+  capital (V-neck, A-line); tags snap to a spelling already in use, so "Work" and "work" stay
+  one tag rather than splitting the items between two. Brands, sizes, subcategories, materials
+  and patterns already worked this way — this extends it to the two places that still drifted.
 - **Item metadata (manually entered or inferred).** Fields that don't apply to a category are
   not offered: a handbag has no sleeve length, a necklace has no silhouette, and neither has a
   size. The form hides them as soon as a category is chosen, and the server drops any value for

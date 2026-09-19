@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { PROCESSED_BUCKET } from "@/lib/images/storage.client";
 import { createSignedUpload, deleteImage } from "@/lib/images/storage";
 import { processItemImage } from "@/lib/images/pipeline";
-import { canonicalize, normalizeSize } from "@/lib/text";
+import { canonicalize, normalizeSize, normalizeTitle } from "@/lib/text";
 import {
   buildAttributes,
   fieldApplies,
@@ -103,12 +103,18 @@ async function canonicalizeFields(userId: string, input: ItemInput) {
     ),
   );
 
+  const brand = canonicalize(input.brand, brands);
+
   return {
-    brand: canonicalize(input.brand, brands),
+    brand,
     size: normalizeSize(input.size, sizes),
     subcategory: canonicalize(input.subcategory, subcategories),
     material: canonicalize(input.material, materials),
     pattern: canonicalize(input.pattern, patterns),
+    // Sentence case however it was typed, with brand names left in their own spelling.
+    // This item's own brand is included even when it is new to the closet, so the first
+    // item from a label doesn't have it lowercased out of its title.
+    name: normalizeTitle(input.name, brand ? [...brands, brand] : brands),
   };
 }
 
@@ -117,12 +123,26 @@ async function canonicalizeFields(userId: string, input: ItemInput) {
  *
  * Tags are a single vocabulary shared by items and outfits (spec §1), so this same
  * connect-or-create runs from the outfit builder in Phase 4.
+ *
+ * Names are snapped to a spelling already in use, the same way brands are: the uniqueness
+ * constraint is exact, so without this "Work" and "work" become two tags, split the items
+ * between them, and both show up in the tag picker. Existing spelling wins rather than any
+ * casing rule — the user's own capitalisation is the intent.
  */
 async function connectTags(userId: string, tagNames: readonly string[]) {
-  const unique = Array.from(new Set(tagNames.map((name) => name.trim()).filter(Boolean)));
+  const existing = await db.tag.findMany({ where: { userId }, select: { name: true } });
+  const vocabulary = existing.map((tag) => tag.name);
+
+  const unique = new Map<string, string>();
+  for (const raw of tagNames) {
+    const name = canonicalize(raw, vocabulary);
+    if (!name) continue;
+    // Dedupe case-insensitively too, so one submission can't carry both variants.
+    unique.set(name.toLowerCase(), name);
+  }
 
   return Promise.all(
-    unique.map((name) =>
+    [...unique.values()].map((name) =>
       db.tag.upsert({
         where: { userId_name: { userId, name } },
         update: {},
@@ -173,7 +193,7 @@ export async function createItem(
     select: { id: true },
     data: {
       userId: user.id,
-      name: input.name,
+      name: canonical.name,
       category: input.category,
       subcategory: canonical.subcategory,
       brand: canonical.brand,
@@ -237,7 +257,7 @@ export async function updateItem(
   await db.item.update({
     where: { id: existing.id },
     data: {
-      name: input.name,
+      name: canonical.name,
       category: input.category,
       subcategory: canonical.subcategory,
       brand: canonical.brand,

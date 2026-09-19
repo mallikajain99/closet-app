@@ -31,14 +31,17 @@ describe("fitToCategory", () => {
     expect(fitToCategory(source, "TOP")).toEqual(source);
   });
 
-  it("keeps a shoe visibly smaller than a coat", () => {
-    // The rule that matters: same source, different category, different size. Without
-    // it the grid loses all sense of proportion and the outfit composite is nonsense.
+  it("keeps a shoe smaller than a coat, but not by much", () => {
+    // Same source, different category, different size — otherwise the grid loses any
+    // sense of proportion. The range is deliberately narrow now: the outfit composite
+    // rescales against the figure itself, so severity here only made a pair of flats
+    // occupy a quarter of its catalog tile.
     const source = { width: 2000, height: 2000 };
     const shoe = fitToCategory(source, "SHOE");
     const coat = fitToCategory(source, "OUTERWEAR");
 
-    expect(shoe.height).toBeLessThan(coat.height / 2);
+    expect(shoe.height).toBeLessThan(coat.height);
+    expect(shoe.height).toBeGreaterThan(coat.height / 2);
   });
 
   it("rejects degenerate input", () => {
@@ -47,24 +50,25 @@ describe("fitToCategory", () => {
 });
 
 describe("placeOnCanvas", () => {
-  it("centres horizontally", () => {
+  it("centres on both axes", () => {
     const fitted = { width: 400, height: 300 };
-    const { left } = placeOnCanvas(fitted, "TOP");
+    const { left, top } = placeOnCanvas(fitted, "TOP");
     expect(left).toBe((CANVAS_SIZE - fitted.width) / 2);
+    expect(top).toBe((CANVAS_SIZE - fitted.height) / 2);
   });
 
-  it("anchors by body position rather than centring", () => {
-    // Stacking the canvases should put each piece at roughly the right height, so a hat
-    // sits high and shoes sit low without any per-item nudging.
+  it("places every category identically", () => {
+    // Position is no longer category-dependent: the outfit composite anchors garments
+    // against the figure itself, so baking an anchor in here only pushed items
+    // off-centre in their catalog tiles. Scale is still per-category — see fitToCategory.
     const fitted = { width: 300, height: 200 };
-    const hat = placeOnCanvas(fitted, "HAT");
-    const top = placeOnCanvas(fitted, "TOP");
-    const bottom = placeOnCanvas(fitted, "BOTTOM");
-    const shoe = placeOnCanvas(fitted, "SHOE");
+    const placements = (["HAT", "TOP", "BOTTOM", "SHOE", "DRESS"] as const).map((category) =>
+      placeOnCanvas(fitted, category),
+    );
 
-    expect(hat.top).toBeLessThan(top.top);
-    expect(top.top).toBeLessThan(bottom.top);
-    expect(bottom.top).toBeLessThan(shoe.top);
+    for (const placement of placements) {
+      expect(placement).toEqual(placements[0]);
+    }
   });
 
   it("never places an item off the canvas", () => {

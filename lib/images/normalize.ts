@@ -14,17 +14,29 @@ import type { Category } from "@prisma/client";
 export const CANVAS_SIZE = 1024;
 export const THUMBNAIL_SIZE = 256;
 
-/** Maximum fraction of the canvas a category may occupy, as [width, height]. */
+/**
+ * Maximum fraction of the canvas a category may occupy, as [width, height].
+ *
+ * These were originally severe — shoes capped at 26% of the canvas height — so that
+ * stacking the canvases produced an outfit at human proportions. The outfit composite
+ * no longer works that way: it trims each garment and rescales it against the figure
+ * (`COMPOSITE_GEOMETRY` in scripts/outfit-preview.ts).
+ *
+ * That leaves the catalog grid as the only reader, and there the severity was a bug —
+ * a pair of flats occupied a quarter of its tile and read as a thumbnail of a thumbnail.
+ * The range is now compressed: enough differentiation that a shoe still isn't a coat,
+ * but every item substantially fills its tile.
+ */
 export const CATEGORY_EXTENT: Record<Category, { width: number; height: number }> = {
-  DRESS: { width: 0.82, height: 0.96 },
-  OUTERWEAR: { width: 0.92, height: 0.78 },
-  TOP: { width: 0.88, height: 0.62 },
-  BOTTOM: { width: 0.7, height: 0.86 },
-  SHOE: { width: 0.46, height: 0.26 },
-  HAT: { width: 0.42, height: 0.28 },
-  BAG: { width: 0.44, height: 0.4 },
-  JEWELRY: { width: 0.34, height: 0.24 },
-  ACCESSORY: { width: 0.5, height: 0.34 },
+  DRESS: { width: 0.86, height: 0.94 },
+  OUTERWEAR: { width: 0.92, height: 0.9 },
+  TOP: { width: 0.9, height: 0.84 },
+  BOTTOM: { width: 0.76, height: 0.9 },
+  SHOE: { width: 0.8, height: 0.62 },
+  HAT: { width: 0.68, height: 0.58 },
+  BAG: { width: 0.7, height: 0.7 },
+  JEWELRY: { width: 0.58, height: 0.52 },
+  ACCESSORY: { width: 0.72, height: 0.62 },
 };
 
 export type Size = { width: number; height: number };
@@ -58,38 +70,27 @@ export function fitToCategory(
 }
 
 /**
- * Where to place the fitted garment on the canvas.
+ * Where to place the fitted garment on the canvas. Centred, both axes.
  *
- * Horizontally centred. Vertically, items are anchored by where they sit on a body
- * rather than centred: a hat belongs near the top of its canvas and shoes near the
- * bottom, so that stacking the canvases in the outfit composite puts each piece at
- * roughly the right height without per-item nudging.
+ * This used to anchor vertically by body position — a hat high on its canvas, shoes low
+ * — so that stacking the canvases produced an outfit. The outfit composite no longer
+ * works that way: it trims each garment to its own bounds and positions it against the
+ * figure's height (`COMPOSITE_GEOMETRY` in scripts/outfit-preview.ts), because the grid
+ * and the body want different geometry and one canvas cannot serve both.
+ *
+ * With the composite doing its own positioning, the baked-in anchor had no reader left
+ * and only showed up as items sitting off-centre in their catalog tiles.
+ *
+ * Category *scale* is still applied — a shoe must not render as tall as a coat — so the
+ * grid keeps its sense of proportion.
  */
-const VERTICAL_ANCHOR: Record<Category, number> = {
-  HAT: 0.1,
-  TOP: 0.35,
-  OUTERWEAR: 0.4,
-  DRESS: 0.45,
-  JEWELRY: 0.3,
-  BAG: 0.5,
-  ACCESSORY: 0.5,
-  BOTTOM: 0.6,
-  SHOE: 0.9,
-};
-
 export function placeOnCanvas(
   fitted: Size,
-  category: Category,
+  _category: Category,
   canvas: number = CANVAS_SIZE,
 ): { left: number; top: number } {
-  const anchor = VERTICAL_ANCHOR[category];
-
-  const left = Math.round((canvas - fitted.width) / 2);
-  // Anchor is the fraction of the canvas the item's centre sits at.
-  const rawTop = Math.round(canvas * anchor - fitted.height / 2);
-
   return {
-    left: Math.max(0, Math.min(left, canvas - fitted.width)),
-    top: Math.max(0, Math.min(rawTop, canvas - fitted.height)),
+    left: Math.max(0, Math.round((canvas - fitted.width) / 2)),
+    top: Math.max(0, Math.round((canvas - fitted.height) / 2)),
   };
 }
