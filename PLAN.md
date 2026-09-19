@@ -1,7 +1,7 @@
 # Digital Closet Manager — Implementation Plan
 
-**Status:** Phases 0 and 1 complete and deployed. Adding items works end to end from a phone. Phase 2 (image pipeline) is next and needs a Replicate token. One open item (decision 5, mannequin asset sourcing) is cosmetic and gated to Phase 2.5
-**Last updated:** 2026-08-31
+**Status:** Phases 0, 1 and 2 complete. The catalog is background-removed and visually uniform; new items process themselves. Phase 2.5 (mannequin calibration) is next and needs decision 5 — the mannequin asset — resolved first
+**Last updated:** 2026-09-17
 **Companion doc:** [closet_app_feature_spec.md](./closet_app_feature_spec.md)
 
 > This plan and the feature spec are kept in sync. Any change to requirements should be
@@ -59,35 +59,63 @@ the garment images and the mannequin composite's contact shadows.
 | Carousels / layout | Embla Carousel; CSS Grid + absolutely-positioned slots | Spec confirms no 3D mannequin needed — fixed CSS slots suffice |
 | Client data | TanStack Query + React Server Components for initial loads | Wear stats change constantly and need invalidation across catalog / detail / dashboard |
 | Backend | Next.js Route Handlers + Server Actions (same repo) | App is CRUD + aggregation + one async pipeline; a separate service is unnecessary overhead |
-| Background jobs | Inngest | Background removal takes 5–30s and cannot run inline in a request. Retries, step functions, dashboard, free tier, runs on Vercel |
+| Background jobs | Next.js `after()` — **Inngest dropped** | Background removal takes 20–60s and cannot block a response, but it also doesn't need a queue: one user, one item at a time, and `after()` already keeps the invocation alive past the response. Inngest would have added a service, an account and a signing-key deploy step to run a single job type. The retry path is `scripts/process-images.ts`, which was already needed for backfill |
 | Database | Postgres (Supabase) + Prisma 7 | Relational data with heavy joins and date-range aggregation; arrays/JSONB cover colors and attribute tags |
 | Image storage | Supabase Storage (S3-compatible), private buckets + signed URLs | Bundled with DB and auth. Cloudflare R2 is the swap-in if outgrown |
 | Image processing | Replicate (hosted models) + `sharp` (normalization) | See pipeline below |
 | Auth | Supabase Auth, single user to start | Every table carries `user_id` from day 1, so shared closets become a feature flag, not a migration |
-| Hosting | Vercel | Zero-config for Next.js; Supabase and Inngest integrate directly |
+| Hosting | Vercel | Zero-config for Next.js; Supabase integrates directly. `after()` work counts against the route's `maxDuration`, so the catalog pages set it explicitly |
 | Charts | Recharts | Dashboard leaderboards and wear-over-time |
 
 ### 1.1 Image Processing Pipeline
 
-The trickiest technical piece, as flagged in the spec. Three distinct steps, run as an Inngest
-job on every submitted item:
+The trickiest technical piece, as flagged in the spec. Implemented in `lib/images/pipeline.ts`,
+which is the single implementation shared by the Server Actions and the backfill script:
 
 1. **Segment** — `BiRefNet` or `RMBG-2.0` on Replicate. Salient-object segmentation: on a
    flat-lay or product shot these cut the garment cleanly. On a model/lifestyle photo they
    return *person + garment* together, which is why step 2 exists.
-2. **Isolate garment from person** — for model photos, a human-parsing model (e.g.
-   `SegFormer` clothes-parsing / `Self-Correction-Human-Parsing`) labels garment regions
-   separately from skin/hair/face; mask to the garment class matching the item's category.
-   This is the hardest step and quality will vary by source image.
+2. **Remove the support structure** — a prompt-guided clothing mask (`schananas/grounded_sam`)
+   says *where clothing is*; the crisp alpha from step 1 supplies the shape. Getting this
+   right took four attempts, and the lesson is worth keeping: **"not clothing" must never
+   mean "erase."** The mask is coarse and misses rope trim, ribbed collar bands and pale
+   pinstripes, and every garment ever damaged here came from trusting it per-pixel. What is
+   reliably true is geometry — whatever holds a garment up sits *outside* it, a hanger above
+   and a display stand below. So:
+   - interior holes in the mask are filled (flood the background inward from the border;
+     anything enclosed is a hole), because filling only ever means "don't erase here";
+   - non-clothing regions are erased as whole connected **islands**, and only if an island
+     reaches beyond the garment's vertical extent. A hook and its bar are one island, so the
+     bar goes even though it overlaps the shoulders; toggles and cuffs lie wholly inside the
+     two lines and are unreachable by construction;
+   - semi-transparent pixels outside those lines are cleared too, since a white hanger on a
+     pale backdrop returns at partial alpha and is invisible to the island pass;
+   - a **safety valve** discards the mask entirely if it wants to erase more than 25% of the
+     garment, falling back to a plain crop above the garment. That is what keeps a pale
+     pinstripe top intact rather than reduced to fragments.
+
+   A hanger bar seen *through* a collar opening still survives — it is genuinely behind the
+   fabric's own opening, and no masking approach removes it.
+
+   The person-parsing pass this step originally specified isn't needed: the photos are
+   garments on hangers, not on a body.
 3. **Normalize** — `sharp`, locally, no API cost: trim transparent edges → scale to a
    **per-category** target box (a shoe must not render as tall as a coat) → center on a fixed
-   1024×1024 transparent canvas → WebP, plus a 256px thumbnail.
+   1024×1024 transparent canvas → WebP, plus a 256px thumbnail. The grid loads thumbnails.
 
-Per the spec, both `original_image_key` and `processed_image_key` are stored, plus a
-`processing_status` so the UI can show a pending state.
+Both `original_image_key` and `processed_image_key` are stored, plus `thumbnail_key` and a
+`processing_status`. **The two image keys live in different buckets** (`closet-originals` and
+`closet-processed`), so a key alone is never enough to mint a signed URL — reads go through
+`getItemImageUrls` in `lib/images/storage.ts`, which signs each key against its own bucket and
+falls back to the original when there is no render. Signing a processed key against the
+originals bucket returns "Object not found", which renders as a silent "No photo".
 
-**Hard requirement:** the user can always override with a manual crop or accept the original
-image. No segmentation model is reliable enough to be a blocking dependency.
+Progress and failure reasons are written to the `ImageJob` row for the item, which is what the
+detail page shows when a cutout fails.
+
+**Hard requirement, implemented:** the user can always re-run the cutout or keep the original
+image (`OVERRIDDEN`, excluded from bulk re-runs). No segmentation model is reliable enough to be
+a blocking dependency.
 
 Cost: Replicate runs are fractions of a cent per image. A few hundred items is a few dollars, once.
 
@@ -290,7 +318,7 @@ shape the later phases.
 |---|---|---|
 | **0 — Foundation** ✅ **done** *(deploy pending)* | Next.js + Tailwind + theme tokens, full Prisma schema migrated to Supabase (11 tables, 6 enums), storage buckets, magic-link auth via `proxy.ts` + `lib/auth.ts`, pure-function core with 51 tests. Remaining: Vercel deploy (see `SETUP.md` Part 3) | ✅ App is live locally and login works |
 | **1 — Catalog (raw)** ✅ **done** | Photo/screenshot upload → storage, item metadata form, tags, grid view, detail, edit/delete, hanger/dress-form guidance in the capture flow. **No image processing yet** | ✅ Live in production; real closet can be loaded in from a phone |
-| **2 — Image pipeline** | Inngest job, segmentation, per-category normalization, pending/failed UI states, manual override, backfill of Phase-1 items | Catalog looks visually uniform |
+| **2 — Image pipeline** ✅ **done** | Segmentation via Replicate with a clothing-mask gate for hangers, per-category normalization onto a 1024px canvas plus a 256px thumbnail, background processing on save via `after()` (no Inngest — see below), pending/failed badges, manual re-run and keep-original override, backfill of all 49 Phase-1 items | ✅ Catalog looks visually uniform |
 | **2.5 — Mannequin calibration** | Time-boxed ~1 day. Source or commission the neutral mannequin asset; composite ~10 real garments over it; tune per-category anchor boxes and shadow treatment until a full outfit reads correctly | The outfit visual is proven on real garments before the builder is built around it |
 | **3 — Browse & item detail** | Filters (category / color / brand / formality / sleeve), search, brand jump-through, item detail page *minus* wear stats | Catalog is genuinely navigable at ~100 items |
 | **4 — Outfit builder** | Mannequin-backed composite layout, per-slot carousels, live preview, per-item scale/offset adjustment, save / name / tag, signature + duplicate detection, edit-in-place (new `OutfitVersion`) + duplicate | Real outfits can be built and saved |
@@ -317,7 +345,8 @@ shape the later phases.
 | 4 | On-body rendering approach | **D (mannequin-backed layered composite).** Garment accuracy outranks on-body realism, which rules out generative approaches. A retained as an optional per-wear photo; B and C not planned | Resolved 2026-08-31 |
 | 5 | Mannequin asset — source or commission? | Needs one neutral, faceless, front-facing figure. Stock 3D render, illustration, or commissioned asset all work. Decide at Phase 2.5; not blocking before then | Open — gated to Phase 2.5 |
 
-Decision 5 is cosmetic and does not block Phases 0–2.
+Decision 5 did not block Phases 0–2, all of which are now done — but Phase 2.5 is next, so it is
+the one thing standing between here and the outfit builder.
 
 ---
 
@@ -325,6 +354,8 @@ Decision 5 is cosmetic and does not block Phases 0–2.
 
 | Date | Change |
 |---|---|
+| 2026-09-17 | **Hanger removal reworked; catalog reprocessed.** The four renders flagged on 09-13 were never actually fixed — the algorithm change landed at 07:29 UTC on 09-14 but the newest render was from 05:25 UTC, so the fix was verified on a temp file and never written back. Reprocessing exposed that both existing approaches failed in opposite directions: the per-pixel mask gate punched holes through fabric (destroying a suede vest's rope toggles and a pale pinstripe top), while cropping above the garment left hanger bars catalog-wide. Replaced with island-based removal keyed on geometry rather than on the mask's per-pixel opinion — see §1.1 step 2 — plus a broader mask prompt (it had no word for "vest"), a wider gate to bridge thin collar bands, and a 25% safety valve. All 49 items reprocessed; no failures. Two sweaters shot on a display *stand* rather than a hanger drove the rule to be symmetric: support structure is anything reaching outside the garment's vertical extent, above or below. |
+| 2026-09-17 | **Phase 2 complete.** The pipeline moved out of the backfill script into `lib/images/pipeline.ts`, shared by the catalog Server Actions and `scripts/process-images.ts`. **Inngest dropped** — `after()` covers a single job type for a single user without adding a service; the script remains the retry path, and the catalog pages set `maxDuration` because `after()` work counts against the route's timeout. Added pending/failed badges and the two manual overrides (re-run, keep original as `OVERRIDDEN`, which bulk re-runs skip). Failure reasons are persisted on `ImageJob` and shown on the item detail page. **Bug found and fixed:** all 49 processed renders were invisible in the app — pages signed the processed key against the *originals* bucket, so every item silently fell back to "No photo". Reads now go through `getItemImageUrls`, which signs per bucket; item deletion had the same bug and was leaking renders and thumbnails. Spec §1 gains the background-processing and override guarantees. |
 | 2026-08-31 | Initial plan drafted from `closet_app_feature_spec.md` |
 | 2026-08-31 | Open decisions 1–3 resolved. Outfit editing = edit-in-place carrying history; data model gains `OutfitVersion` and `WearLog.outfitVersionId` to keep exact-combination stats accurate. Supabase confirmed; single-user confirmed. Spec §2 and §3 updated to match. |
 | 2026-08-31 | Design direction added (Everlane/COS/Indyx references) → new spec §5, new plan Design Direction section, theme tokens added to Phase 0. On-body rendering evaluated → new spec §6, new plan §1.2; option A (OOTD photo capture) added to Phase 5 and spec §3, option B deferred to Phase 7 pending decision 4, option C ruled out. `WearLog` gains OOTD image fields; `ImageJob` made polymorphic. |

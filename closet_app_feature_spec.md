@@ -34,6 +34,13 @@ A personal wardrobe management app that catalogs clothing/shoes, lets the user b
   - If the source is a model/lifestyle photo, isolate and remove the person, keeping only the garment
   - Normalize the result into a consistent style across the whole catalog (e.g., same canvas size, same neutral background color/transparency, similar centering/scale) so every item looks visually uniform regardless of source
   - Store both the original source image and the processed "clean" version
+  - **Runs in the background, not in front of the user.** Saving an item returns
+    immediately and the item is usable straight away, showing its source photo until the
+    clean version is ready. The catalog marks an item as still processing, and marks one
+    whose processing failed — a failure is never silent and never blocks the item.
+  - **The user can override the result.** Any item can have its cutout re-run, or can be
+    told to keep the original photo instead. Keeping the original is a permanent choice
+    that later bulk re-runs leave alone.
 - **Item metadata (manually entered or inferred):**
   - Category (top, bottom, dress, outerwear, shoe, hat, accessory, etc.)
   - Subcategory (t-shirt, blouse, jeans, sneakers, heels, etc.)
