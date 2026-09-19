@@ -73,12 +73,23 @@ const GARMENT_BASE: Record<string, number> = {
   cardigan: 38,
   vest: 40,
   overshirt: 42,
+  shorts: 30,
   sandals: 35,
+  sweatshirt: 35,
+  skirt: 31,
+  // Set from the user's own figures — jeans $65, trousers $40, skirts $25 — which describe
+  // her (unbranded) pieces. These bases are quoted at tier 1.0, so they are those numbers
+  // divided by the 0.8 unbranded tier; a mid-market branded equivalent lands higher, which
+  // is the intent.
+  trousers: 50,
+  pants: 50,
   flats: 40,
+  leggings: 40,
   sneakers: 45,
   heels: 55,
   loafers: 55,
   jacket: 65,
+  jeans: 81,
   boots: 70,
   blazer: 70,
   coat: 90,
@@ -99,6 +110,9 @@ const CATEGORY_FALLBACK: Record<string, number> = {
 
 /** Fabric moves price more than almost anything else at the same brand. */
 const MATERIAL_FACTOR: Array<[string, number]> = [
+  // Listed before "leather": `includes` matches the first entry, and faux leather is a
+  // mid-market fabric, not the premium the real hide commands.
+  ["faux leather", 1.3],
   ["suede", 2.2],
   ["leather", 2.2],
   ["silk", 1.5],

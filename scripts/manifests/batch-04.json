@@ -1,0 +1,448 @@
+[
+  {
+    "file": "IMG_1722.HEIC",
+    "name": "Chocolate brown cropped sweatshirt",
+    "category": "TOP",
+    "subcategory": "sweatshirt",
+    "colors": [
+      "chocolate brown"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER"
+    ],
+    "sleeveLength": "long",
+    "formality": "casual",
+    "material": "cotton",
+    "pattern": "solid",
+    "silhouette": [
+      "cropped",
+      "oversized"
+    ]
+  },
+  {
+    "file": "IMG_1723.HEIC",
+    "name": "Charcoal linen wide-leg trousers",
+    "category": "BOTTOM",
+    "subcategory": "trousers",
+    "colors": [
+      "charcoal"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "formality": "smart",
+    "material": "linen",
+    "pattern": "solid",
+    "silhouette": [
+      "wide-leg",
+      "relaxed"
+    ]
+  },
+  {
+    "file": "IMG_1724.HEIC",
+    "name": "Tan wrap mini skirt",
+    "category": "BOTTOM",
+    "subcategory": "skirt",
+    "colors": [
+      "tan"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL"
+    ],
+    "formality": "smart",
+    "material": "woven",
+    "pattern": "solid",
+    "silhouette": [
+      "wrap",
+      "straight"
+    ]
+  },
+  {
+    "file": "IMG_1725.HEIC",
+    "name": "Black tailored shorts",
+    "category": "BOTTOM",
+    "subcategory": "shorts",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "formality": "smart",
+    "material": "woven",
+    "pattern": "solid",
+    "silhouette": [
+      "tailored",
+      "straight"
+    ]
+  },
+  {
+    "file": "IMG_1726.HEIC",
+    "name": "Mocha wrap mini skirt",
+    "category": "BOTTOM",
+    "subcategory": "skirt",
+    "colors": [
+      "mocha"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL"
+    ],
+    "formality": "smart",
+    "material": "woven",
+    "pattern": "solid",
+    "silhouette": [
+      "wrap",
+      "straight"
+    ]
+  },
+  {
+    "file": "IMG_1727.heic",
+    "name": "Washed black straight-leg jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "washed black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER",
+      "SPRING"
+    ],
+    "formality": "casual",
+    "material": "denim",
+    "pattern": "solid",
+    "silhouette": [
+      "straight"
+    ]
+  },
+  {
+    "file": "IMG_1728.HEIC",
+    "name": "Black straight-leg jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER",
+      "SPRING"
+    ],
+    "formality": "casual",
+    "material": "denim",
+    "pattern": "solid",
+    "silhouette": [
+      "straight"
+    ]
+  },
+  {
+    "file": "IMG_1729.HEIC",
+    "name": "Faded black raw-hem jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "faded black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER",
+      "SPRING"
+    ],
+    "formality": "casual",
+    "material": "denim",
+    "pattern": "solid",
+    "silhouette": [
+      "straight"
+    ]
+  },
+  {
+    "file": "IMG_1730.HEIC",
+    "name": "Sage satin bias midi skirt",
+    "category": "BOTTOM",
+    "subcategory": "skirt",
+    "colors": [
+      "sage green"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "formality": "dressy",
+    "material": "satin",
+    "pattern": "solid",
+    "silhouette": [
+      "a-line",
+      "relaxed"
+    ]
+  },
+  {
+    "file": "IMG_1731.HEIC",
+    "name": "Fuchsia linen wrap mini skirt",
+    "category": "BOTTOM",
+    "subcategory": "skirt",
+    "colors": [
+      "fuchsia"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "formality": "smart",
+    "material": "linen",
+    "pattern": "solid",
+    "silhouette": [
+      "wrap",
+      "straight"
+    ]
+  },
+  {
+    "file": "IMG_1732.HEIC",
+    "name": "Stone linen pleated trousers",
+    "category": "BOTTOM",
+    "subcategory": "trousers",
+    "colors": [
+      "stone"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "formality": "smart",
+    "material": "linen",
+    "pattern": "solid",
+    "silhouette": [
+      "straight",
+      "relaxed"
+    ]
+  },
+  {
+    "file": "IMG_1733.HEIC",
+    "name": "Burgundy linen wide-leg trousers",
+    "category": "BOTTOM",
+    "subcategory": "trousers",
+    "colors": [
+      "burgundy"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL"
+    ],
+    "formality": "smart",
+    "material": "linen",
+    "pattern": "solid",
+    "silhouette": [
+      "wide-leg",
+      "relaxed"
+    ]
+  },
+  {
+    "file": "IMG_1734.HEIC",
+    "name": "Mustard checked wide-leg trousers",
+    "category": "BOTTOM",
+    "subcategory": "trousers",
+    "colors": [
+      "mustard"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL"
+    ],
+    "formality": "casual",
+    "material": "cotton",
+    "pattern": "check",
+    "silhouette": [
+      "wide-leg",
+      "relaxed"
+    ]
+  },
+  {
+    "file": "IMG_1735.HEIC",
+    "name": "Black wide-leg trousers",
+    "category": "BOTTOM",
+    "subcategory": "trousers",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER",
+      "SPRING"
+    ],
+    "formality": "smart",
+    "material": "woven",
+    "pattern": "solid",
+    "silhouette": [
+      "wide-leg",
+      "relaxed"
+    ]
+  },
+  {
+    "file": "IMG_1736.heic",
+    "name": "Burgundy pleated wide-leg trousers",
+    "category": "BOTTOM",
+    "subcategory": "trousers",
+    "colors": [
+      "burgundy"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER"
+    ],
+    "formality": "smart",
+    "material": "woven",
+    "pattern": "solid",
+    "silhouette": [
+      "wide-leg",
+      "tailored"
+    ]
+  },
+  {
+    "file": "IMG_1737.HEIC",
+    "name": "Charcoal pleated wide-leg trousers",
+    "category": "BOTTOM",
+    "subcategory": "trousers",
+    "colors": [
+      "charcoal"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER"
+    ],
+    "formality": "smart",
+    "material": "wool blend",
+    "pattern": "solid",
+    "silhouette": [
+      "wide-leg",
+      "tailored"
+    ]
+  },
+  {
+    "file": "IMG_1738.HEIC",
+    "name": "Black tailored straight trousers",
+    "category": "BOTTOM",
+    "subcategory": "trousers",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER",
+      "SPRING"
+    ],
+    "formality": "smart",
+    "material": "woven",
+    "pattern": "solid",
+    "silhouette": [
+      "straight",
+      "tailored"
+    ]
+  },
+  {
+    "file": "IMG_1739.HEIC",
+    "name": "Mid-wash wide-leg jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "mid-wash blue"
+    ],
+    "seasons": [
+      "SPRING",
+      "FALL"
+    ],
+    "formality": "casual",
+    "material": "denim",
+    "pattern": "solid",
+    "silhouette": [
+      "wide-leg"
+    ]
+  },
+  {
+    "file": "IMG_1740.HEIC",
+    "name": "Light wash distressed wide-leg jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "light blue"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL"
+    ],
+    "formality": "casual",
+    "material": "denim",
+    "pattern": "solid",
+    "silhouette": [
+      "wide-leg",
+      "relaxed"
+    ]
+  },
+  {
+    "file": "IMG_1741.HEIC",
+    "name": "Black satin bias midi skirt",
+    "category": "BOTTOM",
+    "subcategory": "skirt",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER",
+      "SPRING"
+    ],
+    "formality": "dressy",
+    "material": "satin",
+    "pattern": "solid",
+    "silhouette": [
+      "straight",
+      "slim"
+    ]
+  },
+  {
+    "file": "IMG_1742.HEIC",
+    "name": "Black faux-leather straight trousers",
+    "category": "BOTTOM",
+    "subcategory": "trousers",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER"
+    ],
+    "formality": "smart",
+    "material": "faux leather",
+    "pattern": "solid",
+    "silhouette": [
+      "straight"
+    ]
+  },
+  {
+    "file": "IMG_1743.HEIC",
+    "name": "Mid-wash straight jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "mid-wash blue"
+    ],
+    "seasons": [
+      "SPRING",
+      "FALL"
+    ],
+    "formality": "casual",
+    "material": "denim",
+    "pattern": "solid",
+    "silhouette": [
+      "straight"
+    ]
+  }
+]

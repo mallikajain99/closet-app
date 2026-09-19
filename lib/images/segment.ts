@@ -29,7 +29,9 @@ const MASK_MODEL = "schananas/grounded_sam";
  * toggles read as non-clothing.
  */
 const MASK_PROMPT =
-  "shirt,blouse,top,vest,waistcoat,clothing,garment,jacket,blazer,coat,cardigan,sweater,knitwear";
+  "shirt,blouse,top,vest,waistcoat,clothing,garment,jacket,blazer,coat,cardigan,sweater,knitwear," +
+  "trousers,pants,jeans,skirt,shorts,dress," +
+  "shoe,shoes,sneaker,boot,boots,sandal,loafer,heel,footwear";
 /**
  * Deliberately narrow. An earlier version included "hook,wire", which ate the rope
  * toggles off a suede vest — the model is right that a rope loop is hook-like. Only the
@@ -546,10 +548,30 @@ async function clearAbove(cutout: Buffer, width: number, cutRow: number) {
  * with. Multiplying one by the other keeps the precise edge and drops the hanger.
  */
 export async function cutOutGarment(source: Buffer): Promise<Buffer> {
+  /**
+   * The mask is an enhancement, never a prerequisite.
+   *
+   * When the prompt matches nothing in the frame, grounded_sam returns an empty tensor
+   * and the prediction dies with "cannot reshape tensor of 0 elements" — which used to
+   * fail the whole item, losing a perfectly good background-removed cutout over a
+   * hanger that might not even be there. Falling back to the plain cutout keeps the
+   * garment; the worst case is a support structure left in frame.
+   */
   const [cutout, mask] = await Promise.all([
     removeBackground(source),
-    clothingMask(source),
+    clothingMask(source).catch((error: unknown) => {
+      // Only a genuine "the model found nothing" is a reason to skip the gate. A
+      // transport failure must propagate so the caller's retry can handle it —
+      // swallowing it here produced a hanger-included cutout and marked it DONE, which
+      // is a silent downgrade and worse than failing the item.
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/cannot reshape tensor of 0 elements|no plain mask/i.test(message)) throw error;
+      console.log(`    no clothing matched the mask prompt — keeping the plain cutout`);
+      return null;
+    }),
   ]);
+
+  if (!mask) return cutout;
 
   const { width, height } = await sharp(cutout).metadata();
   if (!width || !height) throw new Error("Could not read cutout dimensions.");
