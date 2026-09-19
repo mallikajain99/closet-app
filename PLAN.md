@@ -223,21 +223,26 @@ Note this is an **index, not a unique constraint** — two outfits can legitimat
 same item set through edits. Duplicate detection warns at save time against current versions
 rather than being enforced by the database.
 
-### Outfit photos — a table, not a column (added 2026-09-19)
+### Outfit photos — the outfit's visual, not a wear log (added 2026-09-19)
 
-Photos of the user actually wearing an outfit belong to the **outfit**, not to a wear. A new
+Photos of the user wearing an outfit belong to the **outfit** and carry no date. A new
 `OutfitPhoto` table (`outfitId`, original + processed keys, `ProcessingStatus`, `createdAt`)
-holds any number of them, and the calendar falls back to the most recent one for any day that
-outfit was worn.
+holds any number of them.
 
-This sits alongside the existing per-wear `ootd*` columns on `WearLog` rather than replacing
-them, because the two answer different questions. A per-wear photo is a record of *that day*; an
-outfit photo is what the outfit looks like on the user, and may well post-date the wear it
-illustrates. Precedence for a calendar cell is wear photo → outfit's latest → garment cutouts.
+**They are the outfit's primary visual, not a diary.** Where an outfit has a photo, that photo
+is what gets shown wherever the outfit appears — list, detail page, and any calendar day it was
+worn. The layered composite is the fallback for outfits nobody has photographed.
 
-The practical argument for outfit-level photos is that they make the "me in different poses"
-calendar reachable: photographing an outfit once covers every future wear of it, where a
-per-wear photo needs one every morning and so will not actually happen.
+This is worth stating plainly because it retires a goal the plan has carried since August. §1.2
+worked through four ways to show clothes on a body and settled on a mannequin composite because
+generative approaches drift from the real garment. A photograph of the user in the outfit is
+exact by construction — it is not an approximation of the goal, it *is* the goal. The composite
+becomes the stand-in for the un-photographed case, which further weakens any argument for
+sourcing a mannequin figure (decision 5).
+
+**Per-wear OOTD photos are dropped.** The `ootd*` columns on `WearLog` stay in the schema
+unused rather than being migrated away; nothing reads them, and removing columns from a live
+table is not worth the churn for three nullable fields.
 
 ### Derived, never stored
 
@@ -347,7 +352,7 @@ shape the later phases.
 | **2.5 — Composite calibration** ✅ **done** *(rescoped)* | Was "source the mannequin asset and tune around it". Became: establish the composite geometry, which is the part that actually matters. `COMPOSITE_GEOMETRY` in `scripts/outfit-preview.ts` scales and anchors each category **relative to the figure's own height**, so any figure — or none — works without retuning. Placeholder figure at `public/mannequin/placeholder.svg`; `--figures <dir>` compares candidates under real clothes, `--bare` renders stack-only. Tops and outerwear validated on real garments. **The mannequin asset is deferred** (decision 5) and no longer gates Phase 4. Outstanding: `BOTTOM`/`SHOE`/`HAT` geometry is unvalidated until the catalog has such items | ✅ Real garments composite at correct scale and position | Source or commission the neutral mannequin asset; composite ~10 real garments over it; tune per-category anchor boxes and shadow treatment until a full outfit reads correctly | The outfit visual is proven on real garments before the builder is built around it |
 | **3 — Browse & item detail** ✅ **done** | Filters (category / colour / brand / formality / sleeve) and search, all held in the URL; brand jump-through from the item detail page; item detail page *minus* wear stats (built in Phase 1). Facets behind a `<details>` disclosure so four extra chip rows don't crowd the grid. **Not built: the grid density toggle** from the Design Direction table — it wasn't in this phase's scope and nothing depends on it | ✅ Catalog is navigable at 49 items; filters verified against the real closet |
 | **4 — Outfit builder** | Composite layout, per-slot carousels, live preview, per-item scale/offset adjustment, save / name / tag, signature + duplicate detection, edit-in-place (new `OutfitVersion`) + duplicate. **Plus outfit photos** — a new `OutfitPhoto` table (see below), uploaded when creating an outfit or later, feeding the calendar's OOTD fallback | Real outfits can be built and saved |
-| **5 — Wear tracking** 🔶 **in progress** | ✅ Built: log a wear from the item page, today or backdated, with last-worn shown and individual wears removable. Logging is idempotent per day, so a repeat tap joins that day rather than counting twice. Loose items for one day share a `WearLog` with no outfit, which is what the nullable `outfitId` was reserved for — an outfit wear becomes the same row once Phase 4 lands. ✅ Calendar month view with image-first cells, UTC month maths so dates land in the right cell. **Remaining: the optional OOTD photo per wear** | Daily logging habit starts; occasion pieces can be corrected off the neglected list |
+| **5 — Wear tracking** 🔶 **in progress** | ✅ Built: log a wear from the item page, today or backdated, with last-worn shown and individual wears removable. Logging is idempotent per day, so a repeat tap joins that day rather than counting twice. Loose items for one day share a `WearLog` with no outfit, which is what the nullable `outfitId` was reserved for — an outfit wear becomes the same row once Phase 4 lands. ✅ Calendar month view with image-first cells, UTC month maths so dates land in the right cell. **Per-wear OOTD photos dropped from scope** (2026-09-19) — the goal is seeing an outfit on a body, which outfit-level photos handle; a per-day photo is a diary nobody keeps. **Phase 5 is complete** | Daily logging habit starts; occasion pieces can be corrected off the neglected list |
 | **6 — Analytics** | Wear stats on item + outfit detail, cost-per-wear throughout, neglected badges, most/least-worn leaderboards, sort by CPW, closet totals | Spec §1–4 fully delivered |
 | **7 — Extras** | URL import; laundry status; "surprise me" generator; export JSON/CSV; weather; packing lists; gap analysis; declutter; return-window tracker | Chosen by what's actually missed in use |
 
@@ -380,6 +385,7 @@ geometry, and a figure can be dropped in behind it later without touching the la
 
 | Date | Change |
 |---|---|
+| 2026-09-19 | **Correction: outfit photos are the outfit's visual, not a wear log.** The previous entry specced them as a dated record with a wear-photo-wins precedence chain. Wrong framing — the goal is simply to see an outfit on a body, so the photos carry no date and a photo, where one exists, *is* how the outfit is shown everywhere it appears. Two consequences. **Per-wear OOTD photos are dropped**, which closes Phase 5; the unused `ootd*` columns stay on `WearLog` rather than being migrated away for three nullable fields. And it retires a goal carried since August: §1.2 evaluated four ways to render clothes on a body and settled on a mannequin composite because generative drifts from the real garment — a photograph of the user in the outfit is exact by construction, so the composite becomes the fallback for un-photographed outfits and decision 5 weakens further. |
 | 2026-09-19 | **Outfit photos specced (not yet built).** Requirement change: photos of the user wearing an outfit attach to the **outfit**, uploaded when creating it or later, and the calendar pulls the outfit's most recent photo for any day it was worn. That is a different model from the per-wear OOTD photo already specced, so the two now coexist with an explicit precedence — wear photo, then outfit's latest, then garment cutouts — because a per-wear photo is the only genuine record of a given day, while an outfit photo may post-date the wear it illustrates. Needs a new `OutfitPhoto` table; deliberately not migrated yet, since outfits cannot be created until Phase 4 and a migration for an unbuildable feature is risk without benefit. Spec §2 and §3 updated. |
 | 2026-09-19 | **Wear calendar built.** Month grid at `/calendar`, image-first per the design direction — garments fill the cell, the date recedes, and a day with nothing logged gets no fill at all so a sparse month reads as sparse. Month maths lives in `lib/wears/calendar.ts` and is UTC throughout, deliberately separate from `lib/stats/wear-windows.ts`, which is local-time because stats windows follow the user's own calendar: wear dates are UTC midnight, so local-time grid arithmetic puts the 1st of a month in the previous month's last cell west of Greenwich. Tested on the boundaries that fail silently — month length, leap years, Sunday-start months, and that grid keys match a stored `wornOn`. Also fixes a dead header link: `/calendar` was in the nav but had no route. `/outfits` still doesn't. |
 | 2026-09-19 | **Phase 5 started — wear logging.** Wears are recorded from the item page, today or backdated, because the spec makes "add a past wear" first-class: occasion pieces get worn and only remembered later, and that is exactly what rescues them from the neglected list. Logging is **idempotent per calendar day** — a second tap for the same item and date joins the existing day rather than counting twice, since otherwise cost-per-wear drifts down with every stray tap, and it is the number the whole app exists to report. Dates are built as UTC midnight to match the `@db.Date` column; parsing "2026-09-19" with `new Date()` west of Greenwich files the wear a day early and feeds the neglected calculation the wrong date, so that is tested. Verified against the real database: repeat logging does not double-count and the stored date round-trips exactly. Remaining for Phase 5: the calendar view and the optional OOTD photo. |
