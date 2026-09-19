@@ -23,16 +23,34 @@ export type SlotLayout = {
   z: number;
 };
 
+/**
+ * Set from where a garment actually falls on a body, crown 0 to soles 1:
+ * shoulders 0.17, waist 0.45, hip 0.52, knee 0.73, ankle 0.95.
+ *
+ * An earlier set was derived by eye against a placeholder figure and was badly out — a
+ * cardigan spanned 0.16 to 0.67, shoulders to mid-thigh, while jeans ran 0.57 to 0.97,
+ * starting at the hip and stopping short. That produced a dominant top over stunted
+ * legs, which is what "the rendering looks off" was pointing at.
+ *
+ * Categories deliberately overlap: a top covers the waistband, shoes overlap the hem.
+ * The paint order below decides what wins.
+ */
 export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
-  HAT: { slot: "HEAD", label: "Hat", height: 0.095, centre: 0.044, z: 60 },
-  JEWELRY: { slot: "JEWELRY", label: "Jewelry", height: 0.071, centre: 0.186, z: 70 },
-  ACCESSORY: { slot: "OTHER", label: "Accessory", height: 0.119, centre: 0.234, z: 65 },
-  TOP: { slot: "TOP", label: "Top", height: 0.44, centre: 0.388, z: 30 },
-  OUTERWEAR: { slot: "OUTER", label: "Outerwear", height: 0.51, centre: 0.412, z: 40 },
-  DRESS: { slot: "TOP", label: "Dress", height: 0.69, centre: 0.495, z: 30 },
-  BOTTOM: { slot: "BOTTOM", label: "Bottom", height: 0.4, centre: 0.767, z: 20 },
-  SHOE: { slot: "SHOES", label: "Shoes", height: 0.083, centre: 0.965, z: 50 },
-  BAG: { slot: "BAG", label: "Bag", height: 0.19, centre: 0.59, z: 55 },
+  // Crown to chin.
+  HAT: { slot: "HEAD", label: "Hat", height: 0.12, centre: 0.065, z: 60 },
+  JEWELRY: { slot: "JEWELRY", label: "Jewelry", height: 0.06, centre: 0.2, z: 70 },
+  ACCESSORY: { slot: "OTHER", label: "Accessory", height: 0.1, centre: 0.25, z: 65 },
+  // Shoulders to hip.
+  TOP: { slot: "TOP", label: "Top", height: 0.35, centre: 0.345, z: 30 },
+  // Shoulders to just below the hip. One number can't tell a cropped cardigan from a
+  // longline coat — that is what `Item.layoutScale`/`layoutOffset` are reserved for.
+  OUTERWEAR: { slot: "OUTER", label: "Outerwear", height: 0.42, centre: 0.38, z: 40 },
+  // Shoulders to knee.
+  DRESS: { slot: "TOP", label: "Dress", height: 0.58, centre: 0.46, z: 30 },
+  // Waist to ankle — the longest garment on the figure, not the shortest.
+  BOTTOM: { slot: "BOTTOM", label: "Bottom", height: 0.5, centre: 0.7, z: 20 },
+  SHOE: { slot: "SHOES", label: "Shoes", height: 0.075, centre: 0.962, z: 50 },
+  BAG: { slot: "BAG", label: "Bag", height: 0.18, centre: 0.55, z: 55 },
 };
 
 /**

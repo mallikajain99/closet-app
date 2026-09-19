@@ -73,7 +73,7 @@ export function OutfitBuilder({
           {selected.length > 0 ? (
             <OutfitFigure items={selected} sizes="360px" />
           ) : (
-            <div className="label flex aspect-[3/4] items-center justify-center text-ink-subtle">
+            <div className="label flex aspect-[2/3] items-center justify-center text-ink-subtle">
               Pick something to start
             </div>
           )}

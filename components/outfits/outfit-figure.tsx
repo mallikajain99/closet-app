@@ -35,7 +35,9 @@ export function OutfitFigure({
   const layered = byPaintOrder(items);
 
   return (
-    <div className={`relative aspect-[3/4] w-full overflow-hidden ${className}`}>
+    // 2:3 rather than 3:4 — a standing figure is much taller than it is wide, and the
+    // wider frame left the stack marooned in whitespace.
+    <div className={`relative aspect-[2/3] w-full overflow-hidden ${className}`}>
       {layered.map((item) => {
         if (!item.imageUrl) return null;
         const { top, height } = layoutStyle(item.category);
