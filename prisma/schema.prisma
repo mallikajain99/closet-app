@@ -242,7 +242,11 @@ model OutfitItem {
   outfitVersionId String        @db.Uuid
   outfitVersion   OutfitVersion @relation(fields: [outfitVersionId], references: [id], onDelete: Cascade)
   itemId          String        @db.Uuid
-  item            Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  /// Cascade, not Restrict: deleting a garment you no longer own should not be blocked
+  /// by an outfit that contains it. The outfit survives without the piece — its
+  /// signature is recomputed and it is deleted only if nothing is left. Wear history is
+  /// unaffected, since it hangs off WearLog rather than these rows.
+  item            Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   slot  Slot
   order Int  @default(0)

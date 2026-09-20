@@ -12,6 +12,7 @@ import { processItemImage } from "@/lib/images/pipeline";
 import {
   captureAutoNamedOutfits,
   refreshOutfitNames,
+  repairOutfitsAfterItemDelete,
 } from "@/lib/outfits/naming-sync";
 import { canonicalize, normalizeSize, normalizeTitle } from "@/lib/text";
 import {
@@ -223,6 +224,7 @@ export async function createItem(
   if (input.originalImageKey) scheduleProcessing(created.id);
 
   revalidatePath("/catalog");
+  revalidatePath("/outfits");
   redirect("/catalog");
 }
 
@@ -385,7 +387,23 @@ export async function deleteItem(itemId: string) {
 
   if (!existing) return;
 
+  // Captured before the delete: afterwards the join rows have cascaded away and there
+  // is nothing left to find these outfits by.
+  const affected = (
+    await db.outfitVersion.findMany({
+      where: { outfit: { userId: user.id }, items: { some: { itemId } } },
+      select: { outfitId: true },
+      distinct: ["outfitId"],
+    })
+  ).map((version) => version.outfitId);
+  const autoNamed = await captureAutoNamedOutfits(user.id, itemId);
+
   await db.item.delete({ where: { id: existing.id } });
+
+  // Signatures, empty outfits, then names — in that order, since a name is derived from
+  // whatever pieces survive.
+  await repairOutfitsAfterItemDelete(user.id, affected);
+  await refreshOutfitNames(user.id, autoNamed);
 
   // After the row is gone: orphaned storage objects are recoverable, a dangling image
   // reference on a live item is not. The renders live in their own bucket, so they need
@@ -397,5 +415,6 @@ export async function deleteItem(itemId: string) {
   ]);
 
   revalidatePath("/catalog");
+  revalidatePath("/outfits");
   redirect("/catalog");
 }

@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { suggestOutfitNames } from "@/lib/outfits/name";
+import { outfitSignature } from "@/lib/outfits/signature";
 
 /**
  * Keep auto-generated outfit names in step with the items they describe.
@@ -106,4 +107,55 @@ export async function uniqueOutfitName(
   );
 
   return suggestions.find((name) => !taken.has(name.toLowerCase())) ?? suggestions[0];
+}
+
+/**
+ * Put outfits back in order after one of their items was deleted.
+ *
+ * The item rows cascade away on their own, but three things do not follow: the version
+ * signature still describes the old combination, an outfit can be left with nothing in
+ * it, and an auto-generated name may now mention a garment that has gone.
+ *
+ * Call with the outfit ids captured *before* the delete — afterwards there is no link
+ * left to find them by.
+ */
+export async function repairOutfitsAfterItemDelete(
+  userId: string,
+  outfitIds: readonly string[],
+): Promise<void> {
+  for (const outfitId of outfitIds) {
+    const outfit = await db.outfit.findFirst({
+      where: { id: outfitId, userId },
+      select: {
+        id: true,
+        currentVersionId: true,
+        currentVersion: {
+          select: {
+            items: {
+              select: {
+                itemId: true,
+                item: { select: { category: true, subcategory: true, colors: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!outfit) continue;
+
+    const items = outfit.currentVersion?.items ?? [];
+
+    // An outfit with no pieces left is not an outfit.
+    if (items.length === 0) {
+      await db.outfit.delete({ where: { id: outfit.id } });
+      continue;
+    }
+
+    if (outfit.currentVersionId) {
+      await db.outfitVersion.update({
+        where: { id: outfit.currentVersionId },
+        data: { signature: outfitSignature(items.map((link) => link.itemId)) },
+      });
+    }
+  }
 }
