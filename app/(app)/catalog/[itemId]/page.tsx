@@ -200,9 +200,18 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
           />
 
           <div className="mt-10 flex items-center gap-6 border-t border-line pt-6">
+            {/* The usual way an outfit starts: not from an empty builder, but from one
+                garment already in mind. Arriving with it picked skips the step of
+                hunting it back down in a strip of every top in the closet. */}
+            <Link
+              href={`/outfits/new?item=${item.id}`}
+              className="label bg-ink px-6 py-3 text-canvas transition-opacity hover:opacity-90"
+            >
+              Build an outfit
+            </Link>
             <Link
               href={`/catalog/${item.id}/edit`}
-              className="label bg-ink px-6 py-3 text-canvas transition-opacity hover:opacity-90"
+              className="label text-ink-subtle transition-colors hover:text-ink"
             >
               Edit
             </Link>
