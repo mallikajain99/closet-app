@@ -82,6 +82,17 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
   - Descriptive attribute tags (color, sleeve length, formality, material, pattern, etc.)
   - Cost-per-wear: original purchase price ÷ lifetime wear count
   - List of outfits this item currently belongs to (with the ability to jump into any of them)
+  - **"Build an outfit" — opens the builder with this garment already in its slot.**
+    An outfit is rarely conceived from an empty builder; it starts from one piece the
+    user has in mind, and the item's own page is where they are standing when they think
+    of it. Arriving preselected skips hunting the same garment back out of a strip of
+    every top in the closet
+  - **Deleting an item is never blocked by the outfits that contain it.** The item is
+    removed from each of them and the outfit survives as its remaining pieces; an outfit
+    left with nothing in it is deleted too. Refusing the delete would make the outfits
+    the authority over the closet, when the closet is what actually exists — and it left
+    the user unable to remove a garment they no longer own. Auto-generated outfit names
+    that mentioned the departed item are rewritten from what remains
 
 ---
 
@@ -89,12 +100,43 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
 
 - **Visual "virtual mannequin" layout:**
   - Fixed vertical arrangement mimicking body position: hat/head accessory → top → outerwear layer (if applicable) → bottom → shoes, with bags/jewelry/other accessories positioned logically around the frame
+  - **A bag hangs beside the figure, not in the stack.** It is carried, not worn, and a
+    handbag centred between hem and shoes reads as a garment — a third layer of the
+    outfit rather than an accessory to it. Bags sit at hip height against the right edge
+  - **Two layers on the same shoulder line are spread apart, not stacked.** Worn, a
+    cardigan covers most of the shirt under it — accurate, and useless: the outfit reads
+    as one garment and the piece underneath may as well not be in it. The outer layer is
+    laid off to one side so the two overlap rather than hide, as flat-lay styling does
+  - **A layered top and outerwear are drawn at a matched shoulder width.** Garment
+    heights come from body landmarks, so a garment's *width* is whatever its
+    photograph's aspect ratio makes it — across a real closet that ranges by a factor of
+    nearly three, and the narrower of two layers ends up looking like a different size
+    of clothing. They are scaled to a common shoulder width around the shoulder line, so
+    the hem moves and the anchor does not
+  - **Shoes stand under the hem, not on the trouser leg.** Anatomically the trouser
+    breaks over the shoe, so a floor-anchored shoe sits largely behind the hem; with no
+    leg drawn behind it, that reads as a shoe stuck to mid-calf. The overlap is capped at
+    a token amount that still reads as contact
   - **Garments are scaled and anchored as if worn** (see §6, approach D) — per-category anchor boxes sized against a nominal body, with soft contact shadows separating the layers, rather than cutouts stacked at arbitrary sizes. A neutral digital mannequin figure can be rendered behind them to fill the gaps between pieces with exposed arms, neck and legs; it is an optional back layer, deferred until the catalog has full head-to-toe outfits where those gaps appear
 - **Item selection UX:**
   - Horizontal scroll/carousel for each clothing slot (e.g., scroll through all tops, then scroll through all bottoms, then all shoes, then optional accessories/hats)
+  - **Within a slot, items are grouped by kind** — all the jeans together, then the
+    trousers, then the skirts — each group under its own label. One undifferentiated row
+    of 38 tops is a scrolling problem, not a choosing one; the user knows what *kind* of
+    thing they want before they know which one
   - As the user scrolls/selects in each row, the mannequin-style preview updates live so they can see the full outfit assembled before saving
 - **Outfit saving & organization:**
   - Save assembled outfit as a named entity
+  - **The name is written for the user, not requested from them.** An outfit is named
+    automatically from the pieces in it — "Sage green sweater + black jeans" — and the
+    field is pre-filled rather than blank, so saving is one tap. The user can overwrite it
+    at any time and the app never overwrites their wording afterwards. Naming is the only
+    part of saving an outfit the app can't infer well enough to demand, and demanding it
+    turns a two-tap action into a writing task
+  - **Names stay in sync with the garments.** Renaming or recolouring an item updates the
+    auto-named outfits that mention it; an outfit the user named themselves is left alone.
+    Two outfits can't end up with the same name — a collision takes a more specific
+    variant (naming the third piece) rather than a numeric suffix
   - **Photos of the outfit on a body — the outfit's primary visual.** An outfit can carry any
     number of full-body photos of the user wearing it, added when the outfit is created or at
     any time afterwards. **These are not a wear log and are not tied to a date**; they exist so
@@ -106,6 +148,10 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
     photograph of the user in the outfit is perfectly accurate by construction, where every
     rendered approach is an approximation. Photographing an outfit once covers it forever
   - Assign one or more categories/tags (e.g., "Work," "Date Night," "Going Out," "Gym")
+  - **The saved-outfit list filters by occasion tag**, the same URL-backed chip row the
+    catalog uses, with counts taken from the unfiltered set so the chips keep their
+    numbers while narrowing. "What can I wear to work" is the question the tags exist to
+    answer, and it needs asking from the list rather than one outfit at a time
   - Ability to edit a saved outfit later (swap out one piece) — **the outfit keeps its name, tags, and full wear history through the edit.** It remains the same outfit, not a new one; see the outfit identity rule in Feature 3 for how this interacts with exact-combination stats
   - Ability to duplicate an outfit as a starting point for a new one (the duplicate starts with a fresh, empty wear history)
 
@@ -127,7 +173,16 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
     record of that day and may well have been taken later — it is simply the best picture of
     what was worn
 - **Calendar view:**
-  - Each day shows a thumbnail/visual of the outfit worn (if any) — the OOTD photo when one was attached, otherwise the assembled mannequin-layout composite of the outfit's items
+  - Each day shows a thumbnail/visual of the outfit worn (if any) — the outfit's photo when it has one, otherwise the assembled mannequin-layout composite of the outfit's items
+  - **The composite shows every piece, at composite proportions** — not a grid of
+    thumbnails. A capped grid silently drops garments from a larger outfit, and the day a
+    five-piece outfit shows four is the day the calendar stops being trustworthy
+  - **A day in a saved outfit shows, and opens, that outfit as it stands now** — not the
+    version that was logged. The wear keeps its own snapshot so exact-combination stats
+    stay honest (see *Edited outfits*), but the cell is labelled with the outfit's name
+    and links to the outfit, so rendering a superseded version makes the picture disagree
+    with where it goes: add shoes to an outfit and every day already logged loses them.
+    A day of loose items opens the first garment instead
   - Month view and week view
 - **Dashboard / stats view:**
   - **Time windows use calendar periods, not rolling ones, for month and year.** "August" means August 1–31, not the last 30 days. A rolling window moves its own boundaries daily, so the same number means something different each time it's read; a calendar month is something the user can actually reason and recall against. Short windows ("last 7 days") stay rolling, where that genuinely is the intent
