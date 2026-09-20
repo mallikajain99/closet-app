@@ -7,11 +7,14 @@ import type { Category, Slot } from "@prisma/client";
  * `height` and `centre` are fractions of the figure's height — not of the canvas. They
  * come from the Phase 2.5 calibration (see PLAN.md §1.1): the catalog grid wants a
  * garment to fill its tile, a body wants it at body proportions, and one set of numbers
- * cannot serve both. `scripts/outfit-preview.ts` renders from this same table, so the
- * calibration tool and the app can't drift.
+ * cannot serve both.
  *
  * `z` is paint order, back to front. A jacket goes over a top; a top goes over a
  * waistband.
+ *
+ * Note: `scripts/outfit-preview.ts` has its own `COMPOSITE_GEOMETRY` and no longer
+ * reads this table — it still uses the pre-landmark `centre` model, so it is a stale
+ * calibration tool rather than a second renderer of this layout.
  */
 export type SlotLayout = {
   slot: Slot;
@@ -29,6 +32,13 @@ export type SlotLayout = {
    */
   anchor: number;
   edge: "top" | "bottom";
+  /**
+   * Where the garment sits across the figure.
+   *
+   * Almost everything is worn on the body's centre line. A bag is carried beside it,
+   * and stacking one down the middle reads as a garment rather than an accessory.
+   */
+  align?: "centre" | "side";
   z: number;
 };
 
@@ -69,7 +79,8 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
   // whole shoe from the front, so the true figure renders as a speck.
   SHOE: { slot: "SHOES", label: "Shoes", height: 0.13, anchor: FLOOR, edge: "bottom", z: 50 },
 
-  BAG: { slot: "BAG", label: "Bag", height: 0.18, anchor: 0.46, edge: "top", z: 55 },
+  // Carried at the hip, off to one side.
+  BAG: { slot: "BAG", label: "Bag", height: 0.18, anchor: 0.46, edge: "top", align: "side", z: 55 },
 };
 
 /**
@@ -118,8 +129,16 @@ const LENGTH_OVERRIDES: Array<{
   { match: /\bcropped\b/i, categories: ["OUTERWEAR"], height: 0.26 },
   { match: /\blongline|long coat|trench|maxi\b/i, categories: ["OUTERWEAR"], height: 0.68 },
   { match: /\bcoat\b/i, categories: ["OUTERWEAR"], height: 0.58 },
+  // Dresses hang from the shoulder, so these are shoulder-to-hem: 0.4 stops above the
+  // knee, 0.58 below it, 0.78 at the ankle.
   { match: /\bmini\b/i, categories: ["DRESS"], height: 0.4 },
-  { match: /\bmaxi\b/i, categories: ["DRESS"], height: 0.78 },
+  { match: /\bmidi\b/i, categories: ["DRESS"], height: 0.58 },
+  // Grouped, not `\bmaxi|gown\b` — in an alternation the word boundaries bind to the
+  // first and last branch only, so the unbracketed form anchors neither middle term.
+  { match: /\b(maxi|gown)\b/i, categories: ["DRESS"], height: 0.78 },
+  // Neither of these says its length, but both have one: a knit dress is cut short,
+  // and a gown reaches the floor. Without them both fall to the category default.
+  { match: /\b(sweater|knit) dress\b/i, categories: ["DRESS"], height: 0.5 },
 ];
 
 
@@ -129,6 +148,14 @@ export type LayoutSubject = {
   subcategory?: string | null;
   name?: string | null;
   silhouette?: readonly string[];
+  /**
+   * Measured size of the garment inside its 1024px render.
+   *
+   * Only the ratio is used, and only to match one shoulder width against another —
+   * lengths still come from the landmark table, not from the photograph.
+   */
+  renderWidth?: number | null;
+  renderHeight?: number | null;
 };
 
 /**
@@ -170,7 +197,89 @@ export function byPaintOrder<T extends { category: Category }>(items: readonly T
  */
 const MAX_GAP = 0.04;
 
-export type PlacedGarment<T> = { item: T; top: number; height: number };
+/**
+ * How far a shoe may ride up over the hem above it, as a fraction of the figure.
+ *
+ * Anatomically the overlap is large — trousers break over the shoe, and a shoe box drawn
+ * from the ankle to the floor sits mostly behind the hem. On a body that reads correctly
+ * because the leg is there. With nothing behind them the shoes look stuck to the middle
+ * of the trouser leg rather than standing under it, so the overlap is capped at a token
+ * amount that still reads as contact.
+ */
+const MAX_SHOE_OVERLAP = 0.03;
+
+/**
+ * How far a shoulder width may be scaled to match the layer it sits against.
+ *
+ * Generous, because the mismatch being corrected is large, but bounded: an unclamped
+ * ratio would let one bad cutout resize the garment beside it into the frame edge.
+ */
+const SHOULDER_MATCH_LIMIT = { min: 0.6, max: 1.8 };
+
+/** The width this garment will actually be drawn at, given the height it is laid out to. */
+function drawnWidth(subject: LayoutSubject, height: number): number | null {
+  if (!subject.renderWidth || !subject.renderHeight) return null;
+  return height * (subject.renderWidth / subject.renderHeight);
+}
+
+/**
+ * Bring a layered top and outerwear to a common shoulder width.
+ *
+ * Heights come from the landmark table, so a garment's drawn *width* is whatever its
+ * photograph's aspect ratio makes it — across the real closet that runs from 0.16 to
+ * 0.46 of the figure, a factor of nearly three. Worn together, the narrow one looks
+ * like it belongs to a child. Scaling is applied around the shoulder line, so the hem
+ * moves and the anchor does not, exactly as a length override would.
+ *
+ * Mutates the spans in place; the caller owns them and has not used the heights yet.
+ */
+function matchShoulders<T extends LayoutSubject>(
+  spans: Array<{ item: T; top: number; height: number }>,
+): void {
+  const inner = spans.find((s) => s.item.category === "TOP" || s.item.category === "DRESS");
+  const outer = spans.find((s) => s.item.category === "OUTERWEAR");
+  if (!inner || !outer) return;
+
+  const innerWidth = drawnWidth(inner.item, inner.height);
+  const outerWidth = drawnWidth(outer.item, outer.height);
+  if (!innerWidth || !outerWidth) return;
+
+  // The *geometric* mean, so neither garment is treated as the authority — one is not
+  // more correctly photographed than the other, they are just different shapes. It has
+  // to be geometric: an arithmetic mean of two widths sits nearer the larger one, so
+  // correcting a 3× mismatch would shrink the wide garment by a third while asking the
+  // narrow one to nearly double. This splits the ratio evenly, each moving by √r.
+  const target = Math.sqrt(innerWidth * outerWidth);
+  for (const [span, width] of [
+    [inner, innerWidth],
+    [outer, outerWidth],
+  ] as const) {
+    const scale = Math.min(
+      SHOULDER_MATCH_LIMIT.max,
+      Math.max(SHOULDER_MATCH_LIMIT.min, target / width),
+    );
+    span.height *= scale;
+  }
+}
+
+/**
+ * How far each layered upper garment moves off the centre line, as a fraction of the
+ * frame's width.
+ *
+ * Worn, a cardigan covers most of the shirt under it — honest, and useless here: the
+ * outfit reads as one garment and the piece underneath may as well not be in it. Flat-lay
+ * styling solves this by laying the outer layer off to one side, overlapping rather than
+ * hiding. Small enough that the pair still reads as one torso.
+ */
+const LAYER_SPREAD = 0.13;
+
+export type PlacedGarment<T> = {
+  item: T;
+  top: number;
+  height: number;
+  /** Signed fraction of the frame's width to shift by; 0 for anything on the centre line. */
+  offsetX: number;
+};
 
 /**
  * Lay out a whole outfit: anatomical positions, then gaps closed, then fitted to frame.
@@ -184,8 +293,22 @@ export function composeOutfit<T extends LayoutSubject>(
   if (items.length === 0) return { placed: [], frame: { top: 0, bottom: 1 } };
 
   const spans = items
-    .map((item) => ({ item, ...layoutFor(item) }))
+    .map((item) => ({ item, ...layoutFor(item), offsetX: 0 }))
     .sort((a, b) => a.top - b.top);
+
+  // Before anything measures these heights: gap-closing, the frame, and the box-fit
+  // clamp all read them, so resizing afterwards would crop the garment it just grew.
+  matchShoulders(spans);
+
+  // Spread the two shoulder-hung layers apart, but only when there are two. A lone top
+  // belongs on the centre line. The outer layer goes right, which puts a cardigan's
+  // opening over the shirt's body rather than over its own placket.
+  const inner = spans.find((s) => s.item.category === "TOP" || s.item.category === "DRESS");
+  const outer = spans.find((s) => s.item.category === "OUTERWEAR");
+  if (inner && outer) {
+    inner.offsetX = -LAYER_SPREAD;
+    outer.offsetX = LAYER_SPREAD;
+  }
 
   // Walk down the figure pulling each garment up to meet the one above. `reach` is the
   // lowest point covered so far, not the previous garment's hem: a coat spans the top
@@ -202,6 +325,18 @@ export function composeOutfit<T extends LayoutSubject>(
 
     span.top -= shift;
     reach = Math.max(reach, span.top + span.height);
+  }
+
+  // Shoes last: they are the only garment anchored from below, so the gap pass above
+  // can leave them buried under a hem it just pulled down. Pushing them clear extends
+  // the figure past the nominal floor, which the frame maths below picks up.
+  const shoes = spans.filter((s) => s.item.category === "SHOE");
+  const hems = spans.filter((s) => s.item.category !== "SHOE").map((s) => s.top + s.height);
+  if (shoes.length > 0 && hems.length > 0) {
+    const lowestHem = Math.max(...hems);
+    for (const shoe of shoes) {
+      shoe.top = Math.max(shoe.top, lowestHem - MAX_SHOE_OVERLAP);
+    }
   }
 
   const padding = 0.04;

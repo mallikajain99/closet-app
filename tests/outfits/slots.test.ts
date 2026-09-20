@@ -95,6 +95,22 @@ describe("layoutFor", () => {
     expect(of("midi skirt")).toBeLessThan(of("maxi skirt"));
   });
 
+  it("orders dress lengths mini < midi < maxi", () => {
+    const of = (sub: string) => layoutFor({ category: "DRESS", subcategory: sub }).height;
+    expect(of("mini dress")).toBeLessThan(of("midi dress"));
+    expect(of("midi dress")).toBeLessThan(of("maxi dress"));
+  });
+
+  it("reads a dress's length when the name never says one", () => {
+    // "gown" and "sweater dress" carry no length word, so both fell to the category
+    // default and rendered at the same knee length — a floor-length gown included.
+    const gown = layoutFor({ category: "DRESS", subcategory: "gown" });
+    const knit = layoutFor({ category: "DRESS", subcategory: "sweater dress" });
+    const maxi = layoutFor({ category: "DRESS", subcategory: "maxi dress" });
+    expect(gown.height).toBeCloseTo(maxi.height, 5);
+    expect(knit.height).toBeLessThan(CATEGORY_SLOT.DRESS.height);
+  });
+
   it("reads length from silhouette as well as the name", () => {
     const cropped = layoutFor({ category: "TOP", subcategory: "sweater", silhouette: ["cropped"] });
     const plain = layoutFor({ category: "TOP", subcategory: "sweater" });
@@ -159,5 +175,122 @@ describe("composeOutfit", () => {
 
   it("returns an empty layout for an empty outfit", () => {
     expect(composeOutfit([])).toEqual({ placed: [], frame: { top: 0, bottom: 1 } });
+  });
+});
+
+describe("shoe placement", () => {
+  it("stands shoes under the hem rather than on the trouser leg", () => {
+    // Anatomically the trouser breaks over the shoe, so a floor-anchored shoe box sits
+    // mostly behind the hem. With no leg rendered behind them the shoes read as stuck
+    // to mid-calf, which is what "the rendering is off" was pointing at.
+    const { placed } = composeOutfit([
+      { category: "TOP" as const, subcategory: "shirt" },
+      { category: "BOTTOM" as const, subcategory: "jeans" },
+      { category: "SHOE" as const, subcategory: "flats" },
+    ]);
+
+    const jeans = placed.find((p) => p.item.category === "BOTTOM")!;
+    const shoe = placed.find((p) => p.item.category === "SHOE")!;
+    const hem = jeans.top + jeans.height;
+
+    expect(shoe.top).toBeLessThanOrEqual(hem);
+    expect(hem - shoe.top).toBeLessThan(shoe.height * 0.4);
+  });
+
+  it("leaves shoes alone in a shoes-only outfit", () => {
+    const { placed } = composeOutfit([{ category: "SHOE" as const }]);
+    expect(placed[0].top).toBeCloseTo(FLOOR - CATEGORY_SLOT.SHOE.height, 5);
+  });
+});
+
+describe("shoulder matching", () => {
+  const wide = {
+    category: "TOP" as const,
+    subcategory: "shirt",
+    renderWidth: 900,
+    renderHeight: 700,
+  };
+  const narrow = {
+    category: "OUTERWEAR" as const,
+    subcategory: "cardigan",
+    silhouette: ["cropped"],
+    renderWidth: 420,
+    renderHeight: 800,
+  };
+  const widthOf = (p: { item: { renderWidth: number; renderHeight: number }; height: number }) =>
+    p.height * (p.item.renderWidth / p.item.renderHeight);
+
+  it("brings a layered top and cardigan to one shoulder width", () => {
+    // Heights come from the landmark table, so drawn width is whatever the photo's
+    // aspect makes it — across the real closet a factor of nearly three. Worn
+    // together, the narrow one looks like it belongs to someone else.
+    const { placed } = composeOutfit([wide, narrow]);
+    const top = placed.find((p) => p.item.category === "TOP")!;
+    const outer = placed.find((p) => p.item.category === "OUTERWEAR")!;
+
+    const before = widthOf({ item: wide, height: layoutFor(wide).height });
+    const after = widthOf({ item: narrow, height: layoutFor(narrow).height });
+    expect(before / after).toBeGreaterThan(2); // the mismatch being corrected
+
+    const ratio = widthOf(top as never) / widthOf(outer as never);
+    expect(ratio).toBeGreaterThan(0.9);
+    expect(ratio).toBeLessThan(1.1);
+  });
+
+  it("keeps the shoulder line fixed and moves the hem", () => {
+    const { placed } = composeOutfit([wide, narrow]);
+    for (const p of placed) expect(p.top).toBeCloseTo(SHOULDER, 5);
+  });
+
+  it("leaves a lone top at its natural size", () => {
+    const { placed } = composeOutfit([wide]);
+    expect(placed[0].height).toBeCloseTo(layoutFor(wide).height, 5);
+  });
+
+  it("does nothing when a render was never measured", () => {
+    const unmeasured = { category: "OUTERWEAR" as const, subcategory: "cardigan" };
+    const { placed } = composeOutfit([wide, unmeasured]);
+    const top = placed.find((p) => p.item.category === "TOP")!;
+    expect(top.height).toBeCloseTo(layoutFor(wide).height, 5);
+  });
+});
+
+describe("layer spread", () => {
+  it("moves a layered top and outerwear to opposite sides", () => {
+    const { placed } = composeOutfit([
+      { category: "TOP" as const, subcategory: "shirt" },
+      { category: "OUTERWEAR" as const, subcategory: "cardigan" },
+    ]);
+    const top = placed.find((p) => p.item.category === "TOP")!;
+    const outer = placed.find((p) => p.item.category === "OUTERWEAR")!;
+
+    expect(top.offsetX).toBeLessThan(0);
+    expect(outer.offsetX).toBeGreaterThan(0);
+    expect(top.offsetX).toBeCloseTo(-outer.offsetX, 5);
+  });
+
+  it("keeps a lone garment on the centre line", () => {
+    const cases: Array<Array<{ category: Category }>> = [
+      [{ category: "TOP" }],
+      [{ category: "OUTERWEAR" }],
+      [{ category: "TOP" }, { category: "BOTTOM" }, { category: "SHOE" }],
+    ];
+    for (const items of cases) {
+      for (const p of composeOutfit(items).placed) expect(p.offsetX).toBe(0);
+    }
+  });
+
+  it("leaves bottoms and shoes centred even when the top is spread", () => {
+    const { placed } = composeOutfit([
+      { category: "TOP" as const },
+      { category: "OUTERWEAR" as const },
+      { category: "BOTTOM" as const },
+      { category: "SHOE" as const },
+    ]);
+    for (const p of placed) {
+      if (p.item.category === "BOTTOM" || p.item.category === "SHOE") {
+        expect(p.offsetX).toBe(0);
+      }
+    }
   });
 });

@@ -1,7 +1,7 @@
 import Image from "next/image";
 
 import { CANVAS_SIZE, CATEGORY_EXTENT } from "@/lib/images/normalize";
-import { byPaintOrder, composeOutfit } from "@/lib/outfits/slots";
+import { CATEGORY_SLOT, byPaintOrder, composeOutfit } from "@/lib/outfits/slots";
 import type { Category } from "@prisma/client";
 
 export type FigureItem = {
@@ -19,6 +19,8 @@ export type FigureItem = {
    * width-constrained in their canvas rather than height-constrained.
    */
   renderHeight?: number | null;
+  /** Used only to match a layered top and cardigan to one shoulder width. */
+  renderWidth?: number | null;
   imageUrl: string | null;
 };
 
@@ -81,13 +83,29 @@ export function OutfitFigure({
         const top = `${((centre - frame.top) / span - boxHeight / span / 2) * 100}%`;
         const height = `${(boxHeight / span) * 100}%`;
 
+        // A bag hangs beside the body rather than down its centre line, so its box is
+        // pinned to one edge and narrowed; everything else spans the full width and is
+        // centred, because the render is already centred on its own canvas.
+        const side = CATEGORY_SLOT[item.category].align === "side";
+
+        // A layered garment keeps its full-width box — `object-contain` centres the
+        // image in it, so translating the box is what moves the garment.
+        const shift = position.offsetX;
+
         return (
           <div
             key={item.id}
-            // Full width with the garment centred inside: the render is already centred
-            // on its own canvas, so the box only has to place it vertically.
-            className="absolute inset-x-0"
-            style={{ top, height }}
+            className="absolute"
+            style={
+              side
+                ? { top, height, right: "2%", width: "38%" }
+                : {
+                    top,
+                    height,
+                    left: `${shift * 100}%`,
+                    right: `${-shift * 100}%`,
+                  }
+            }
           >
             <Image
               src={item.imageUrl}
