@@ -32,6 +32,7 @@ export default async function OutfitsPage() {
                   category: true,
                   subcategory: true,
                   attributes: true,
+                  renderHeight: true,
                   priceCents: true,
                   originalImageKey: true,
                   processedImageKey: true,
@@ -99,6 +100,7 @@ export default async function OutfitsPage() {
                         category: item.category,
                         subcategory: item.subcategory,
                         silhouette: readSilhouette(item.attributes),
+                        renderHeight: item.renderHeight,
                         imageUrl: urls.get(item.id) ?? null,
                       }))}
                       sizes="(max-width: 640px) 50vw, 240px"

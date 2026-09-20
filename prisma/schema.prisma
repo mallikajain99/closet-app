@@ -129,6 +129,15 @@ model Item {
   thumbnailKey      String?
   processingStatus  ProcessingStatus @default(PENDING)
 
+  /// Measured size of the garment itself within the 1024px render, in pixels.
+  ///
+  /// The outfit composite has to know how much of the canvas is garment and how much is
+  /// padding. Assuming the per-category maximum was wrong by 13–18% on bottoms, which
+  /// are width-constrained in their canvas rather than height-constrained — so they
+  /// rendered too small and sat below the waist line instead of meeting the top's hem.
+  renderWidth       Int?
+  renderHeight      Int?
+
   // Per-item mannequin adjustment (spec §6 approach D). Applied everywhere the item
   // appears, so odd pieces are corrected once rather than per outfit.
   layoutScale   Float?

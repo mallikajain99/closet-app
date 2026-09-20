@@ -16,6 +16,7 @@ export type PickableItem = {
   category: Category;
   subcategory: string | null;
   colors: string[];
+  renderHeight: number | null;
   imageUrl: string | null;
 };
 

@@ -245,7 +245,15 @@ export async function runPipeline(
 
     await client.item.update({
       where: { id: item.id },
-      data: { processedImageKey: fullKey, thumbnailKey: thumbKey, processingStatus: "DONE" },
+      data: {
+        processedImageKey: fullKey,
+        thumbnailKey: thumbKey,
+        processingStatus: "DONE",
+        // Measured, not assumed: the composite needs to know how much of the canvas is
+        // garment and how much is padding.
+        renderWidth: fitted.width,
+        renderHeight: fitted.height,
+      },
     });
     await recordJob(client, item.id, { status: "DONE", step: null, error: null });
 

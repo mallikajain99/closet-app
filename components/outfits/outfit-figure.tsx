@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { CATEGORY_EXTENT } from "@/lib/images/normalize";
+import { CANVAS_SIZE, CATEGORY_EXTENT } from "@/lib/images/normalize";
 import { byPaintOrder, composeOutfit } from "@/lib/outfits/slots";
 import type { Category } from "@prisma/client";
 
@@ -11,6 +11,14 @@ export type FigureItem = {
   /** Length cues — a mini skirt must not render waist-to-ankle like trousers. */
   subcategory?: string | null;
   silhouette?: readonly string[];
+  /**
+   * Measured height of the garment within its 1024px render.
+   *
+   * Without it the layout falls back to the per-category maximum, which overstates the
+   * garment by 11% on average and 59% at worst — bottoms especially, since they are
+   * width-constrained in their canvas rather than height-constrained.
+   */
+  renderHeight?: number | null;
   imageUrl: string | null;
 };
 
@@ -63,8 +71,12 @@ export function OutfitFigure({
 
         // The stored render is a square canvas the garment only partly fills, and
         // `object-contain` scales the whole canvas — so the box has to be enlarged by
-        // the fill fraction or the garment lands smaller than its target.
-        const boxHeight = position.height / CATEGORY_EXTENT[item.category].height;
+        // the fill fraction or the garment lands smaller than its target. Measured
+        // where known; the category maximum is only a fallback for unmeasured items.
+        const fill = item.renderHeight
+          ? item.renderHeight / CANVAS_SIZE
+          : CATEGORY_EXTENT[item.category].height;
+        const boxHeight = position.height / fill;
         const centre = position.top + position.height / 2;
         const top = `${((centre - frame.top) / span - boxHeight / span / 2) * 100}%`;
         const height = `${(boxHeight / span) * 100}%`;

@@ -33,6 +33,7 @@ export default async function EditOutfitPage(props: PageProps<"/outfits/[outfitI
         category: true,
         subcategory: true,
         colors: true,
+        renderHeight: true,
         originalImageKey: true,
         processedImageKey: true,
         thumbnailKey: true,
@@ -60,6 +61,7 @@ export default async function EditOutfitPage(props: PageProps<"/outfits/[outfitI
         category: item.category,
         subcategory: item.subcategory,
         colors: item.colors,
+        renderHeight: item.renderHeight,
         imageUrl: urls.get(item.id) ?? null,
       }));
   }
