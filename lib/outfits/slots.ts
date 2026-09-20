@@ -18,10 +18,24 @@ export type SlotLayout = {
   label: string;
   /** Fraction of the figure's height the garment occupies. */
   height: number;
-  /** How far down the figure its middle sits — 0 at the crown, 1 at the soles. */
-  centre: number;
+  /**
+   * The body landmark the garment hangs from, and which of its edges meets it.
+   *
+   * Anchoring by landmark rather than by centre is what keeps garments aligned with
+   * each other: every top starts at the shoulder line and every bottom starts at the
+   * waist, so a longer top extends further down instead of pushing its own shoulders
+   * up. Centre-anchoring moved both edges whenever a length changed, which is why
+   * tops and trousers met in a different place for every combination.
+   */
+  anchor: number;
+  edge: "top" | "bottom";
   z: number;
 };
+
+/** Body landmarks, crown 0 to soles 1. */
+export const SHOULDER = 0.17;
+export const WAIST = 0.45;
+export const FLOOR = 1;
 
 /**
  * Set from where a garment actually falls on a body, crown 0 to soles 1:
@@ -36,26 +50,26 @@ export type SlotLayout = {
  * The paint order below decides what wins.
  */
 export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
-  // Crown to chin.
-  HAT: { slot: "HEAD", label: "Hat", height: 0.12, centre: 0.065, z: 60 },
-  JEWELRY: { slot: "JEWELRY", label: "Jewelry", height: 0.06, centre: 0.2, z: 70 },
-  ACCESSORY: { slot: "OTHER", label: "Accessory", height: 0.1, centre: 0.25, z: 65 },
-  // Shoulders to hip.
-  // 0.31 not 0.35: a top was reading large against trousers. The liked reference
-  // outfit uses its shirt as OUTERWEAR, so this does not disturb it.
-  TOP: { slot: "TOP", label: "Top", height: 0.31, centre: 0.325, z: 30 },
-  // Shoulders to just below the hip. One number can't tell a cropped cardigan from a
-  // longline coat — that is what `Item.layoutScale`/`layoutOffset` are reserved for.
-  OUTERWEAR: { slot: "OUTER", label: "Outerwear", height: 0.42, centre: 0.38, z: 40 },
-  // Shoulders to knee.
-  DRESS: { slot: "TOP", label: "Dress", height: 0.58, centre: 0.46, z: 30 },
-  // Waist to ankle — the longest garment on the figure, not the shortest.
-  BOTTOM: { slot: "BOTTOM", label: "Bottom", height: 0.5, centre: 0.7, z: 20 },
-  // Deliberately larger than anatomy: a foot is ~5% of height seen front-on, but these
-  // photos show a whole shoe from the front rather than a foreshortened foot, so the
-  // true figure renders as a speck. Sized for visual balance instead.
-  SHOE: { slot: "SHOES", label: "Shoes", height: 0.13, centre: 0.935, z: 50 },
-  BAG: { slot: "BAG", label: "Bag", height: 0.18, centre: 0.55, z: 55 },
+  // Sits on the head.
+  HAT: { slot: "HEAD", label: "Hat", height: 0.12, anchor: 0.02, edge: "top", z: 60 },
+  JEWELRY: { slot: "JEWELRY", label: "Jewelry", height: 0.06, anchor: SHOULDER, edge: "top", z: 70 },
+  ACCESSORY: { slot: "OTHER", label: "Accessory", height: 0.1, anchor: 0.2, edge: "top", z: 65 },
+
+  // Everything worn on the upper body hangs from the shoulders, so they all share one
+  // anchor and only their hems differ.
+  TOP: { slot: "TOP", label: "Top", height: 0.31, anchor: SHOULDER, edge: "top", z: 30 },
+  OUTERWEAR: { slot: "OUTER", label: "Outerwear", height: 0.42, anchor: SHOULDER, edge: "top", z: 40 },
+  DRESS: { slot: "TOP", label: "Dress", height: 0.58, anchor: SHOULDER, edge: "top", z: 30 },
+
+  // Everything worn on the lower body hangs from the waist.
+  BOTTOM: { slot: "BOTTOM", label: "Bottom", height: 0.5, anchor: WAIST, edge: "top", z: 20 },
+
+  // Shoes stand on the floor, so it is their *bottom* edge that is fixed. Deliberately
+  // larger than anatomy: a foot is ~5% of height seen front-on, but these photos show a
+  // whole shoe from the front, so the true figure renders as a speck.
+  SHOE: { slot: "SHOES", label: "Shoes", height: 0.13, anchor: FLOOR, edge: "bottom", z: 50 },
+
+  BAG: { slot: "BAG", label: "Bag", height: 0.18, anchor: 0.46, edge: "top", z: 55 },
 };
 
 /**
@@ -89,30 +103,25 @@ const LENGTH_OVERRIDES: Array<{
   match: RegExp;
   categories: Category[];
   height: number;
-  centre: number;
 }> = [
+  // Only the hem moves: a mini skirt still hangs from the waist, it just stops sooner.
   // Waist 0.45, mid-thigh 0.62, knee 0.73, calf 0.85, ankle 0.95.
-  { match: /\bshorts\b/i, categories: ["BOTTOM"], height: 0.17, centre: 0.535 },
-  // A mini is short, but 0.2 read as tiny beside a top — mid-thigh rather than upper.
-  { match: /\bmini\b/i, categories: ["BOTTOM"], height: 0.27, centre: 0.585 },
-  { match: /\bmidi\b/i, categories: ["BOTTOM"], height: 0.38, centre: 0.64 },
-  { match: /\bmaxi\b/i, categories: ["BOTTOM"], height: 0.5, centre: 0.7 },
+  { match: /\bshorts\b/i, categories: ["BOTTOM"], height: 0.17 },
+  { match: /\bmini\b/i, categories: ["BOTTOM"], height: 0.27 },
+  { match: /\bmidi\b/i, categories: ["BOTTOM"], height: 0.38 },
+  { match: /\bmaxi\b/i, categories: ["BOTTOM"], height: 0.5 },
   // A skirt with no stated length: knee, the safe middle.
-  { match: /\bskirt\b/i, categories: ["BOTTOM"], height: 0.28, centre: 0.59 },
+  { match: /\bskirt\b/i, categories: ["BOTTOM"], height: 0.28 },
 
-  // Shoulders 0.17. Cropped stops above the waist; longline passes the hip.
-  { match: /\bcropped\b/i, categories: ["TOP"], height: 0.25, centre: 0.295 },
-  { match: /\bcropped\b/i, categories: ["OUTERWEAR"], height: 0.28, centre: 0.31 },
-  {
-    match: /\blongline|long coat|trench|maxi\b/i,
-    categories: ["OUTERWEAR"],
-    height: 0.68,
-    centre: 0.51,
-  },
-  { match: /\bcoat\b/i, categories: ["OUTERWEAR"], height: 0.58, centre: 0.46 },
-  { match: /\bmini\b/i, categories: ["DRESS"], height: 0.4, centre: 0.37 },
-  { match: /\bmaxi\b/i, categories: ["DRESS"], height: 0.78, centre: 0.56 },
+  // Cropped stops above the waist; longline passes the hip.
+  { match: /\bcropped\b/i, categories: ["TOP"], height: 0.22 },
+  { match: /\bcropped\b/i, categories: ["OUTERWEAR"], height: 0.26 },
+  { match: /\blongline|long coat|trench|maxi\b/i, categories: ["OUTERWEAR"], height: 0.68 },
+  { match: /\bcoat\b/i, categories: ["OUTERWEAR"], height: 0.58 },
+  { match: /\bmini\b/i, categories: ["DRESS"], height: 0.4 },
+  { match: /\bmaxi\b/i, categories: ["DRESS"], height: 0.78 },
 ];
+
 
 /** Everything about a garment that bears on how long it is. */
 export type LayoutSubject = {
@@ -122,8 +131,13 @@ export type LayoutSubject = {
   silhouette?: readonly string[];
 };
 
-/** Where this particular garment sits, category default sharpened by its own length. */
-export function layoutFor(subject: LayoutSubject): { height: number; centre: number } {
+/**
+ * Where this particular garment sits: its landmark, plus its own length.
+ *
+ * Returns the top edge rather than the centre, because the landmark is what must stay
+ * put. A shorter hem moves the hem, never the shoulders.
+ */
+export function layoutFor(subject: LayoutSubject): { height: number; top: number } {
   const base = CATEGORY_SLOT[subject.category];
   const text = [subject.subcategory, subject.name, ...(subject.silhouette ?? [])]
     .filter(Boolean)
@@ -133,9 +147,10 @@ export function layoutFor(subject: LayoutSubject): { height: number; centre: num
     (rule) => rule.categories.includes(subject.category) && rule.match.test(text),
   );
 
-  return override
-    ? { height: override.height, centre: override.centre }
-    : { height: base.height, centre: base.centre };
+  const height = override?.height ?? base.height;
+  const top = base.edge === "top" ? base.anchor : base.anchor - height;
+
+  return { height, top };
 }
 
 /** Paint order for a set of chosen categories, back to front. */
@@ -143,40 +158,7 @@ export function byPaintOrder<T extends { category: Category }>(items: readonly T
   return [...items].sort((a, b) => CATEGORY_SLOT[a.category].z - CATEGORY_SLOT[b.category].z);
 }
 
-/**
- * CSS box for one garment, as percentages of the figure frame.
- *
- * Returned as percentages rather than pixels so the same outfit renders identically at
- * any size — a 200px card in the outfit list and a 600px builder preview.
- *
- * The box is deliberately *larger* than the garment should be. A stored render is a
- * square canvas with the garment occupying only `CATEGORY_EXTENT[category].height` of
- * it, and `object-contain` scales the whole canvas — so sizing the box to the target
- * renders the garment at target × canvas-fill instead. Dividing by the fill undoes it.
- *
- * Without this the error compounds worst where the fill is smallest: shoes came out at
- * 0.083 × 0.62 ≈ 5% of the figure instead of 8.3%, which read as a speck under a
- * full-size cardigan. The server-side calibration script doesn't need the correction
- * because it trims each render to the garment's own bounds before scaling.
- */
-export function layoutStyle(
-  subject: LayoutSubject,
-  frame: { top: number; bottom: number } = { top: 0, bottom: 1 },
-) {
-  const { height, centre } = layoutFor(subject);
-  const boxHeight = height / CATEGORY_EXTENT[subject.category].height;
 
-  // Rescale from figure coordinates into the visible band, so an outfit with no hat
-  // isn't rendered small under an empty head-sized margin.
-  const span = Math.max(0.01, frame.bottom - frame.top);
-  const scaledHeight = boxHeight / span;
-  const scaledCentre = (centre - frame.top) / span;
-
-  return {
-    top: `${(scaledCentre - scaledHeight / 2) * 100}%`,
-    height: `${scaledHeight * 100}%`,
-  };
-}
 
 /**
  * The largest gap allowed between two stacked garments, as a fraction of the figure.
@@ -202,10 +184,7 @@ export function composeOutfit<T extends LayoutSubject>(
   if (items.length === 0) return { placed: [], frame: { top: 0, bottom: 1 } };
 
   const spans = items
-    .map((item) => {
-      const { height, centre } = layoutFor(item);
-      return { item, top: centre - height / 2, height };
-    })
+    .map((item) => ({ item, ...layoutFor(item) }))
     .sort((a, b) => a.top - b.top);
 
   // Walk down the figure pulling each garment up to meet the one above. `reach` is the

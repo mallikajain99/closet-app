@@ -4,49 +4,52 @@ import type { Category } from "@prisma/client";
 import { CATEGORY_EXTENT } from "@/lib/images/normalize";
 import {
   CATEGORY_SLOT,
+  FLOOR,
+  SHOULDER,
+  WAIST,
   byPaintOrder,
-  layoutFor,
-  layoutStyle,
   composeOutfit,
+  layoutFor,
 } from "@/lib/outfits/slots";
 
-const percent = (value: string) => Number(value.replace("%", "")) / 100;
-const subject = (category: Category) => ({ category });
 const CATEGORIES = Object.keys(CATEGORY_SLOT) as Category[];
 
-describe("layoutStyle", () => {
-  it("renders each garment at its target height, not smaller", () => {
-    // The bug this guards: a stored render is a square canvas the garment only partly
-    // fills, and `object-contain` scales the whole canvas. Sizing the box to the target
-    // rendered the garment at target × canvas-fill — shoes came out at 5% instead of
-    // 8.3% and looked like a speck.
-    for (const category of CATEGORIES) {
-      const boxHeight = percent(layoutStyle(subject(category)).height);
-      const rendered = boxHeight * CATEGORY_EXTENT[category].height;
-      expect(rendered).toBeCloseTo(CATEGORY_SLOT[category].height, 5);
+describe("landmark anchoring", () => {
+  it("hangs every upper-body garment from the same shoulder line", () => {
+    // The point of anchoring by landmark: a longer top extends its hem, it does not
+    // push its own shoulders up. Centre-anchoring moved both edges at once, so tops
+    // and trousers met in a different place for every combination.
+    const top = layoutFor({ category: "TOP" });
+    const coat = layoutFor({ category: "OUTERWEAR", subcategory: "coat" });
+    const cropped = layoutFor({ category: "TOP", silhouette: ["cropped"] });
+
+    expect(top.top).toBeCloseTo(SHOULDER, 5);
+    expect(coat.top).toBeCloseTo(SHOULDER, 5);
+    expect(cropped.top).toBeCloseTo(SHOULDER, 5);
+  });
+
+  it("hangs every lower-body garment from the waist", () => {
+    for (const sub of ["trousers", "jeans", "shorts", "mini skirt", "midi skirt"]) {
+      expect(layoutFor({ category: "BOTTOM", subcategory: sub }).top).toBeCloseTo(WAIST, 5);
     }
   });
 
-  it("keeps each garment centred on its anchor", () => {
-    for (const category of CATEGORIES) {
-      const { top, height } = layoutStyle(subject(category));
-      const middle = percent(top) + percent(height) / 2;
-      expect(middle).toBeCloseTo(CATEGORY_SLOT[category].centre, 5);
-    }
+  it("stands shoes on the floor, fixing their bottom edge", () => {
+    const shoe = layoutFor({ category: "SHOE" });
+    expect(shoe.top + shoe.height).toBeCloseTo(FLOOR, 5);
   });
 
-  it("never sizes a box taller than the frame", () => {
-    // `object-contain` would switch to width-constrained and silently shrink the
-    // garment below its target.
-    for (const category of CATEGORIES) {
-      expect(percent(layoutStyle(subject(category)).height)).toBeLessThanOrEqual(1);
-    }
+  it("overlaps a top with the waistband rather than leaving a seam", () => {
+    const top = layoutFor({ category: "TOP" });
+    const jeans = layoutFor({ category: "BOTTOM", subcategory: "jeans" });
+    expect(top.top + top.height).toBeGreaterThan(jeans.top);
   });
 
-  it("puts shoes below bottoms, and bottoms below tops", () => {
-    expect(CATEGORY_SLOT.TOP.centre).toBeLessThan(CATEGORY_SLOT.BOTTOM.centre);
-    expect(CATEGORY_SLOT.BOTTOM.centre).toBeLessThan(CATEGORY_SLOT.SHOE.centre);
-    expect(CATEGORY_SLOT.HAT.centre).toBeLessThan(CATEGORY_SLOT.TOP.centre);
+  it("changes only the hem when a garment is shorter", () => {
+    const full = layoutFor({ category: "BOTTOM", subcategory: "jeans" });
+    const mini = layoutFor({ category: "BOTTOM", subcategory: "mini skirt" });
+    expect(mini.top).toBeCloseTo(full.top, 5);
+    expect(mini.height).toBeLessThan(full.height);
   });
 });
 
@@ -108,7 +111,7 @@ describe("layoutFor", () => {
   it("falls back to the category default when nothing matches", () => {
     expect(layoutFor({ category: "TOP" })).toEqual({
       height: CATEGORY_SLOT.TOP.height,
-      centre: CATEGORY_SLOT.TOP.centre,
+      top: CATEGORY_SLOT.TOP.anchor,
     });
   });
 });
@@ -140,7 +143,7 @@ describe("composeOutfit", () => {
     ];
     const { placed } = composeOutfit(items);
     const top = placed.find((p) => p.item.category === "TOP")!;
-    expect(top.top).toBeCloseTo(layoutFor(items[0]).centre - layoutFor(items[0]).height / 2, 5);
+    expect(top.top).toBeCloseTo(layoutFor(items[0]).top, 5);
   });
 
   it("keeps the frame tall enough for the largest box", () => {
