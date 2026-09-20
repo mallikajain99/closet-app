@@ -158,8 +158,12 @@ export function OutfitBuilder({
 
         <section className="border-t border-line pt-6">
           <label htmlFor="name" className="label text-ink-subtle">
-            Name <span className="text-ink-subtle">(optional)</span>
+            Name
           </label>
+          <p className="mb-2 mt-1 text-meta text-ink-subtle">
+            Named from the pieces as you pick them. Type over it if you&rsquo;d rather
+            call it something else.
+          </p>
           <input
             id="name"
             name="name"
@@ -170,32 +174,8 @@ export function OutfitBuilder({
               setEdited(event.target.value.trim().length > 0);
             }}
             placeholder={suggestions[0] ?? "Monday work"}
-            className="mt-2 w-full border border-line-strong bg-surface px-4 py-3 text-ink placeholder:text-ink-subtle focus:border-ink focus:outline-none"
+            className="w-full border border-line-strong bg-surface px-4 py-3 text-ink placeholder:text-ink-subtle focus:border-ink focus:outline-none"
           />
-
-          {suggestions.length > 1 && (
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {suggestions.map((suggestion) => (
-                <li key={suggestion}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setName(suggestion);
-                      setEdited(true);
-                    }}
-                    aria-pressed={value === suggestion}
-                    className={`label border px-3 py-1.5 transition-colors ${
-                      value === suggestion
-                        ? "border-ink bg-ink text-canvas"
-                        : "border-line-strong text-ink-muted hover:border-ink hover:text-ink"
-                    }`}
-                  >
-                    {suggestion}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
 
           <div className="mt-6">
             <p className="label text-ink-subtle">Tags</p>

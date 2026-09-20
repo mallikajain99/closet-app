@@ -52,13 +52,16 @@ export function suggestOutfitNames(items: readonly NameableItem[]): string[] {
   const coreCount = ordered[0]?.category === "DRESS" ? 1 : 2;
   const core = ordered.slice(0, coreCount);
 
+  // Ordered so that falling through them gets *more* specific, not less. Collisions
+  // are resolved by taking the next variant, and "Blouse + jeans" is a worse way to
+  // distinguish two outfits than naming the third piece.
   const suggestions = [
     core.map((item) => describe(item)).join(" + "),
-    core.map((item) => describe(item, false)).join(" + "),
     ordered
       .slice(0, 3)
       .map((item) => describe(item))
       .join(" + "),
+    core.map((item) => describe(item, false)).join(" + "),
   ];
 
   const seen = new Set<string>();

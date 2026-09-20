@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { defaultOutfitName } from "@/lib/outfits/name";
+import { uniqueOutfitName } from "@/lib/outfits/naming-sync";
 import { outfitSignature } from "@/lib/outfits/signature";
 import { CATEGORY_SLOT } from "@/lib/outfits/slots";
 import { canonicalize } from "@/lib/text";
@@ -73,7 +73,7 @@ export async function createOutfit(
   // Naming is optional. It's the one part of saving an outfit the app can't infer well,
   // and requiring it turns a two-tap action into a writing task — so a blank field falls
   // back to the same suggestion the builder offers.
-  const finalName = name || defaultOutfitName(items);
+  const finalName = name || (await uniqueOutfitName(user.id, items));
 
   const signature = outfitSignature(items.map((item) => item.id));
 
@@ -210,7 +210,7 @@ export async function updateOutfit(
   }
 
   const tags = await connectOutfitTags(user.id, tagNames);
-  const finalName = name || defaultOutfitName(items);
+  const finalName = name || (await uniqueOutfitName(user.id, items, outfit.id));
 
   if (signature !== outfit.currentVersion?.signature) {
     const version = await db.outfitVersion.create({

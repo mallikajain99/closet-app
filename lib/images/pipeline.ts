@@ -23,7 +23,6 @@ import {
   placeOnCanvas,
   type Size,
 } from "@/lib/images/normalize";
-import { straighten } from "@/lib/images/straighten";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ProcessOutcome =
@@ -38,11 +37,7 @@ export type ProcessOutcome =
  * empty space happened to surround it rather than by its own size.
  */
 export async function normalizeCutout(cutout: Buffer, category: Category) {
-  // Hangers are rarely level, and once several garments are composited the tilts
-  // disagree with each other, which reads as broken rather than casual.
-  const { buffer: upright } = await straighten(cutout);
-
-  const trimmed = await sharp(upright).trim({ threshold: 10 }).png().toBuffer();
+  const trimmed = await sharp(cutout).trim({ threshold: 10 }).png().toBuffer();
   const meta = await sharp(trimmed).metadata();
 
   if (!meta.width || !meta.height) throw new Error("Could not read trimmed dimensions.");

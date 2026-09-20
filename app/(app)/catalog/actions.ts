@@ -292,7 +292,7 @@ export async function updateItem(
   }
 
   // Outfits named after this garment follow it; ones the user named do not.
-  await refreshOutfitNames(autoNamedOutfits);
+  await refreshOutfitNames(user.id, autoNamedOutfits);
 
   revalidatePath("/catalog");
   revalidatePath("/outfits");

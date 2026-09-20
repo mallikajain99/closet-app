@@ -49,7 +49,10 @@ export async function captureAutoNamedOutfits(
 }
 
 /** Re-derive those names from the items as they are now. */
-export async function refreshOutfitNames(snapshots: readonly Snapshot[]): Promise<void> {
+export async function refreshOutfitNames(
+  userId: string,
+  snapshots: readonly Snapshot[],
+): Promise<void> {
   for (const { outfitId } of snapshots) {
     const outfit = await db.outfit.findUnique({
       where: { id: outfitId },
@@ -68,9 +71,39 @@ export async function refreshOutfitNames(snapshots: readonly Snapshot[]): Promis
     });
 
     const items = outfit?.currentVersion?.items.map((link) => link.item) ?? [];
-    const [next] = suggestOutfitNames(items);
-    if (!next || next === outfit?.name) continue;
+    if (items.length === 0) continue;
+    const next = await uniqueOutfitName(userId, items, outfitId);
+    if (next === outfit?.name) continue;
 
     await db.outfit.update({ where: { id: outfitId }, data: { name: next } });
   }
+}
+
+/**
+ * An auto-generated name that isn't already taken by another outfit.
+ *
+ * Two outfits sharing a top and bottom but differing in shoes would otherwise both be
+ * called "Dark brown blouse + black jeans" — which is exactly the case in this catalog.
+ * The suggestions run short to long, so falling through them naturally reaches for the
+ * third piece to tell them apart. If every variant is taken the first is used anyway: a
+ * duplicate name is worse than a mangled one, but not worse than refusing to save.
+ */
+export async function uniqueOutfitName(
+  userId: string,
+  items: readonly { category: Parameters<typeof suggestOutfitNames>[0][number]["category"]; subcategory: string | null; colors: string[] }[],
+  excludeOutfitId?: string,
+): Promise<string> {
+  const suggestions = suggestOutfitNames(items);
+  if (suggestions.length === 0) return "Untitled outfit";
+
+  const taken = new Set(
+    (
+      await db.outfit.findMany({
+        where: { userId, ...(excludeOutfitId ? { NOT: { id: excludeOutfitId } } : {}) },
+        select: { name: true },
+      })
+    ).map((outfit) => outfit.name.toLowerCase()),
+  );
+
+  return suggestions.find((name) => !taken.has(name.toLowerCase())) ?? suggestions[0];
 }
