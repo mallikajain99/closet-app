@@ -28,6 +28,21 @@ export type PickableItem = {
  * sideways is the interaction the spec asks for, and it keeps the preview on screen
  * while you choose, which is the entire point of a live preview.
  */
+/**
+ * Split a slot's items into a row per kind — jeans, trousers, skirts.
+ *
+ * Alphabetical rather than by size: the rows keep the same position every visit, which
+ * matters more than putting the biggest first when you come back to this repeatedly.
+ */
+function groupBySubcategory(items: readonly PickableItem[]): [string, PickableItem[]][] {
+  const groups = new Map<string, PickableItem[]>();
+  for (const item of items) {
+    const kind = item.subcategory?.trim() || "other";
+    groups.set(kind, [...(groups.get(kind) ?? []), item]);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
 export function OutfitBuilder({
   itemsBySlot,
   allTags,
@@ -115,44 +130,51 @@ export function OutfitBuilder({
 
           return (
             <section key={slot}>
-              <div className="flex items-baseline justify-between">
-                <p className="label text-ink-subtle">{label}</p>
+              <div className="flex items-baseline justify-between border-b border-line pb-2">
+                <p className="label text-ink">{label}</p>
                 <p className="text-meta text-ink-subtle">
                   {chosen[slot]?.name ?? `${options.length} to choose from`}
                 </p>
               </div>
 
-              <ul className="-mx-6 mt-2 flex gap-3 overflow-x-auto px-6 pb-2">
-                {options.map((item) => {
-                  const active = chosen[slot]?.id === item.id;
-                  return (
-                    <li key={item.id} className="shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => toggle(slot, item)}
-                        aria-pressed={active}
-                        title={item.name}
-                        className={`relative block size-24 overflow-hidden border transition-colors ${
-                          active
-                            ? "border-ink bg-surface"
-                            : "border-line bg-surface-sunken hover:border-line-strong"
-                        }`}
-                      >
-                        {item.imageUrl && (
-                          <Image
-                            src={item.imageUrl}
-                            alt={item.name}
-                            fill
-                            unoptimized
-                            sizes="96px"
-                            className="object-contain"
-                          />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              {groupBySubcategory(options).map(([kind, group]) => (
+                <div key={kind} className="mt-3">
+                  {/* A row per kind: one strip of thirty-eight tops isn't scannable
+                      however it's sorted, but a strip of six sweaters is. */}
+                  <p className="text-meta text-ink-subtle">{kind}</p>
+                  <ul className="-mx-6 mt-1 flex gap-3 overflow-x-auto px-6 pb-2">
+                    {group.map((item) => {
+                      const active = chosen[slot]?.id === item.id;
+                      return (
+                        <li key={item.id} className="shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => toggle(slot, item)}
+                            aria-pressed={active}
+                            title={item.name}
+                            className={`relative block size-24 overflow-hidden border transition-colors ${
+                              active
+                                ? "border-ink bg-surface"
+                                : "border-line bg-surface-sunken hover:border-line-strong"
+                            }`}
+                          >
+                            {item.imageUrl && (
+                              <Image
+                                src={item.imageUrl}
+                                alt={item.name}
+                                fill
+                                unoptimized
+                                sizes="96px"
+                                className="object-contain"
+                              />
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
             </section>
           );
         })}
