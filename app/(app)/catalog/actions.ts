@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 
+import type { Prisma } from "@prisma/client";
+
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PROCESSED_BUCKET } from "@/lib/images/storage.client";
@@ -15,6 +17,7 @@ import {
   repairOutfitsAfterItemDelete,
 } from "@/lib/outfits/naming-sync";
 import { canonicalize, normalizeSize, normalizeTitle } from "@/lib/text";
+import { estimatePriceCents } from "@/lib/items/estimate-price";
 import {
   buildAttributes,
   fieldApplies,
@@ -173,6 +176,31 @@ function scheduleProcessing(itemId: string) {
   });
 }
 
+/**
+ * Price and attributes for a save, estimating the price when none was given.
+ *
+ * Cost-per-wear is the number the app exists to report and is undefined without a
+ * price, so an item never reaches the catalog priceless. The estimate is flagged in
+ * `attributes.priceEstimated`, so it stays visibly a guess and a real figure typed
+ * later simply replaces it — typing a price clears the flag, because the moment the
+ * user states one it is no longer an estimate.
+ */
+function priceFor(input: ItemInput, canonical: Awaited<ReturnType<typeof canonicalizeFields>>) {
+  const attributes = buildAttributes(input, canonical);
+  if (input.priceCents != null) {
+    return { priceCents: input.priceCents, attributes };
+  }
+  return {
+    priceCents: estimatePriceCents({
+      brand: canonical.brand ?? null,
+      category: input.category,
+      subcategory: canonical.subcategory ?? null,
+      attributes,
+    }),
+    attributes: { ...attributes, priceEstimated: true } as Prisma.InputJsonObject,
+  };
+}
+
 export async function createItem(
   _prev: ActionResult | null,
   formData: FormData,
@@ -206,13 +234,12 @@ export async function createItem(
       size: fieldApplies("size", input.category) ? canonical.size : null,
       colors: input.colors,
       seasons: input.seasons,
-      priceCents: input.priceCents,
+      ...priceFor(input, canonical),
       purchaseDate: input.purchaseDate,
       sourceUrl: input.sourceUrl,
       status: input.status,
       conditionNote: input.conditionNote,
       returnByDate: input.returnByDate,
-      attributes: buildAttributes(input, canonical),
       originalImageKey: input.originalImageKey,
       // The pipeline flips this to DONE below. Until it does, the catalog shows the
       // source image, so a new item is usable immediately rather than blank.
@@ -274,13 +301,12 @@ export async function updateItem(
       size: fieldApplies("size", input.category) ? canonical.size : null,
       colors: input.colors,
       seasons: input.seasons,
-      priceCents: input.priceCents,
+      ...priceFor(input, canonical),
       purchaseDate: input.purchaseDate,
       sourceUrl: input.sourceUrl,
       status: input.status,
       conditionNote: input.conditionNote,
       returnByDate: input.returnByDate,
-      attributes: buildAttributes(input, canonical),
       ...(imageChanged
         ? { originalImageKey: input.originalImageKey, processingStatus: "PENDING" as const }
         : {}),

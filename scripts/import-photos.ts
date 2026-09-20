@@ -39,6 +39,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, type Category, type Season } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
+
+import { estimatePriceCents } from "@/lib/items/estimate-price";
 import sharp from "sharp";
 
 loadEnv({ path: ".env.local", quiet: true });
@@ -295,17 +297,31 @@ async function main() {
     if (pattern) attributes.pattern = pattern;
     if (entry.silhouette?.length) attributes.silhouette = entry.silhouette;
 
+    const subcategory = canonicalize(entry.subcategory, subcategories);
+    const brand = canonicalize(entry.brand, brands);
+
+    // Manifests carry no price, and an item without one has no cost-per-wear — the
+    // number the whole app reports. Estimated on the same model the form uses, so a
+    // bulk-imported garment and a hand-added one are never priced differently.
+    const priceCents = estimatePriceCents({
+      brand: brand ?? null,
+      category: entry.category,
+      subcategory: subcategory ?? null,
+      attributes,
+    });
+
     await db.item.create({
       data: {
         userId: user.id,
         name: normalizeWhitespace(entry.name),
         category: entry.category,
-        subcategory: canonicalize(entry.subcategory, subcategories),
-        brand: canonicalize(entry.brand, brands),
+        subcategory,
+        brand,
         size: canonicalize(entry.size, sizes),
         colors: entry.colors ?? [],
         seasons: entry.seasons ?? [],
-        attributes,
+        priceCents,
+        attributes: { ...attributes, priceEstimated: true },
         originalImageKey: key,
         processingStatus: "PENDING",
         tags: { create: tags.map((tag) => ({ tagId: tag.id })) },
