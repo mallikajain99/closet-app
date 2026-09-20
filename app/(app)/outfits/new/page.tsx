@@ -38,6 +38,13 @@ export default async function NewOutfitPage() {
   for (const { slot, categories } of BUILDER_SLOTS) {
     itemsBySlot[slot] = items
       .filter((item) => categories.includes(item.category))
+      // Grouped by kind before name: scrolling a strip of thirty-eight tops is only
+      // searchable if all the sweaters sit together and all the shirts sit together.
+      .sort(
+        (a, b) =>
+          (a.subcategory ?? "zzz").localeCompare(b.subcategory ?? "zzz") ||
+          a.name.localeCompare(b.name),
+      )
       .map((item) => ({
         id: item.id,
         name: item.name,

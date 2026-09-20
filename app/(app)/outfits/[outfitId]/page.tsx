@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
 import { costPerWearCents, formatCents, outfitCostPerWear } from "@/lib/stats/cost-per-wear";
 import { CATEGORY_SLOT } from "@/lib/outfits/slots";
+import { readSilhouette } from "@/lib/validation/item";
 
 export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfitId]">) {
   const { outfitId } = await props.params;
@@ -33,6 +34,8 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
                   name: true,
                   brand: true,
                   category: true,
+                  subcategory: true,
+                  attributes: true,
                   priceCents: true,
                   originalImageKey: true,
                   processedImageKey: true,
@@ -75,6 +78,8 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
               id: item.id,
               name: item.name,
               category: item.category,
+              subcategory: item.subcategory,
+              silhouette: readSilhouette(item.attributes),
               imageUrl: urls.get(item.id) ?? null,
             }))}
             sizes="360px"

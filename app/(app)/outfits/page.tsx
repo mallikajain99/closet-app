@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
 import { outfitCostPerWear, formatCents } from "@/lib/stats/cost-per-wear";
+import { readSilhouette } from "@/lib/validation/item";
 
 export const metadata = { title: "Outfits" };
 
@@ -29,6 +30,8 @@ export default async function OutfitsPage() {
                   id: true,
                   name: true,
                   category: true,
+                  subcategory: true,
+                  attributes: true,
                   priceCents: true,
                   originalImageKey: true,
                   processedImageKey: true,
@@ -94,6 +97,8 @@ export default async function OutfitsPage() {
                         id: item.id,
                         name: item.name,
                         category: item.category,
+                        subcategory: item.subcategory,
+                        silhouette: readSilhouette(item.attributes),
                         imageUrl: urls.get(item.id) ?? null,
                       }))}
                       sizes="(max-width: 640px) 50vw, 240px"
