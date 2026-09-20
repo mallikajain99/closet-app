@@ -91,6 +91,8 @@ const GARMENT_BASE: Record<string, number> = {
   // fell to its category default, which priced a floor-length gown and a jersey mini
   // the same — the single number a category fallback can offer.
   camisole: 25,
+  bodysuit: 35,
+  "bike shorts": 28,
   "tank top": 18,
   "halter top": 22,
   "mini dress": 40,

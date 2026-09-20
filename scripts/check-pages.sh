@@ -16,7 +16,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 LOG="${TMPDIR:-/tmp}/closet-dev.log"
-PAGES=(/catalog /outfits /outfits/new /calendar)
+PAGES=(/ /catalog /outfits /outfits/new /calendar)
 
 echo "→ restarting dev server"
 lsof -ti:3000 | xargs kill 2>/dev/null
@@ -45,12 +45,12 @@ STATUS=0
 
 # Each of these has actually shipped to the user at least once.
 check() {
-  local pattern="$1" label="$2"
+  local pattern="$1" label="$2" exclude="${3:-$^}"
   local hits
-  hits=$(printf '%s\n' "$NEW" | grep -ciE "$pattern")
+  hits=$(printf '%s\n' "$NEW" | grep -ivE "$exclude" | grep -ciE "$pattern")
   if [ "$hits" -gt 0 ]; then
     echo "✗ $label ($hits)"
-    printf '%s\n' "$NEW" | grep -iE "$pattern" | head -2 | cut -c1-140
+    printf '%s\n' "$NEW" | grep -ivE "$exclude" | grep -iE "$pattern" | head -2 | cut -c1-140
     STATUS=1
   else
     echo "✓ $label"
@@ -58,7 +58,12 @@ check() {
 }
 
 check "unknown field|unknown arg"        "no stale Prisma client"
-check "⨯|unhandled|server error|500 in " "no server errors"
+# Killing the dev server aborts whatever RSC prefetches the open tabs had in flight,
+# and each one logs a browser-side rejection followed by a successful fallback
+# navigation. That is the restart working, not the app failing, so it is excluded —
+# narrowly, by the message, rather than by muting browser lines wholesale.
+check "⨯|unhandled|server error|500 in " "no server errors" \
+      "failed to fetch rsc payload|\"⨯ unhandledrejection:\" undefined"
 
 # Advisory only. Next reports height 0 for a `fill` image that was measured before its
 # tab laid out, which happens routinely in background tabs — so this flags a page worth

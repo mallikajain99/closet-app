@@ -8,6 +8,7 @@ import {
   monthRange,
   parseMonth,
   shiftMonth,
+  weekOf,
 } from "@/lib/wears/calendar";
 
 describe("parseMonth", () => {
@@ -90,5 +91,43 @@ describe("labels", () => {
   it("formats the month in UTC, not local time", () => {
     expect(monthLabel({ year: 2026, month: 1 })).toBe("January 2026");
     expect(formatMonthKey({ year: 2026, month: 3 })).toBe("2026-03");
+  });
+});
+
+describe("weekOf", () => {
+  it("runs Sunday to Saturday around the given day", () => {
+    const week = weekOf(new Date("2026-09-23T12:00:00Z")); // a Wednesday
+    expect(week).toHaveLength(7);
+    expect(week.map(isoOf)).toEqual([
+      "2026-09-20",
+      "2026-09-21",
+      "2026-09-22",
+      "2026-09-23",
+      "2026-09-24",
+      "2026-09-25",
+      "2026-09-26",
+    ]);
+  });
+
+  it("keeps a Sunday as the start of its own week, not the end of the last", () => {
+    const week = weekOf(new Date("2026-09-20T12:00:00Z"));
+    expect(isoOf(week[0])).toBe("2026-09-20");
+  });
+
+  it("crosses a month boundary without renumbering", () => {
+    const week = weekOf(new Date("2026-10-01T12:00:00Z")); // a Thursday
+    expect(isoOf(week[0])).toBe("2026-09-27");
+    expect(isoOf(week[6])).toBe("2026-10-03");
+  });
+
+  it("returns days at UTC midnight, so they match a stored wornOn exactly", () => {
+    // Which day it is is a local question; `wornOn` is a UTC-midnight date column. The
+    // days therefore carry the local calendar date expressed at UTC midnight, the same
+    // convention as `todayUtc` — anything else makes grid lookups miss by a day.
+    for (const day of weekOf(new Date("2026-09-23T12:00:00Z"))) {
+      expect(day.getUTCHours()).toBe(0);
+      expect(day.getUTCMinutes()).toBe(0);
+      expect(day.getUTCSeconds()).toBe(0);
+    }
   });
 });

@@ -82,3 +82,29 @@ export function buildMonthGrid(key: MonthKey): DayCell[][] {
 export function isoOf(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+/**
+ * The seven days of the week containing `now`, Sunday to Saturday.
+ *
+ * Sunday-start to match `WEEKDAYS` and the month grid — a week that starts on a
+ * different day from the calendar above it is its own small confusion.
+ *
+ * The week is decided by the user's *local* calendar date and then expressed as UTC
+ * midnight, matching `todayUtc`: `wornOn` is a date column stored at UTC midnight, so
+ * the days have to line up with it, but which day it is for the user is a local
+ * question. Deriving the date itself in UTC would roll the week over in the evening
+ * west of Greenwich, while it is still Saturday to the person looking at the screen.
+ */
+export function weekOf(now: Date = new Date()): Date[] {
+  const today = new Date(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
+  );
+  const sunday = new Date(today);
+  sunday.setUTCDate(sunday.getUTCDate() - today.getUTCDay());
+
+  return Array.from({ length: 7 }, (_, offset) => {
+    const day = new Date(sunday);
+    day.setUTCDate(sunday.getUTCDate() + offset);
+    return day;
+  });
+}
