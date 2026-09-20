@@ -61,14 +61,17 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
 /**
  * The slots the builder offers, head to toe.
  *
- * Only these five for now: they are what the catalog can fill, and an outfit builder
- * with three permanently empty carousels reads as broken rather than as extensible.
+ * A slot with nothing to put in it is hidden at render time rather than listed here, so
+ * this can stay the full set: an empty carousel reads as broken, but a missing one just
+ * looks like a shorter form.
  */
 export const BUILDER_SLOTS = [
+  { slot: "HEAD" as Slot, label: "Hat", categories: ["HAT"] as Category[] },
   { slot: "OUTER" as Slot, label: "Outerwear", categories: ["OUTERWEAR"] as Category[] },
   { slot: "TOP" as Slot, label: "Top", categories: ["TOP", "DRESS"] as Category[] },
   { slot: "BOTTOM" as Slot, label: "Bottom", categories: ["BOTTOM"] as Category[] },
   { slot: "SHOES" as Slot, label: "Shoes", categories: ["SHOE"] as Category[] },
+  { slot: "BAG" as Slot, label: "Bag", categories: ["BAG"] as Category[] },
 ] as const;
 
 /**

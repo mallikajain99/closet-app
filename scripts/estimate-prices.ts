@@ -48,6 +48,7 @@ const BRAND_TIER: Record<string, number> = {
   "ann taylor": 1.1,
   kasper: 1.1,
   columbia: 1.0,
+  nike: 1.15,
   "banana republic": 1.2,
   heartloom: 1.2,
   foxcroft: 1.3,
