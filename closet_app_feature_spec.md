@@ -58,7 +58,13 @@ A personal wardrobe management app that catalogs clothing/shoes, lets the user b
   - Brand
   - Size
   - Season/weather suitability (optional but useful — see suggestions below)
-  - Purchase price (for Feature 4)
+  - Purchase price (for Feature 4). **Every item has one, estimated on save when none
+    is typed.** Cost-per-wear is the number the app exists to report and is undefined
+    without a price, but demanding one at intake would stop the closet being catalogued
+    at all — most garments were bought years ago at a price nobody remembers. The
+    estimate comes from a brand-tier × garment-type × material model and is flagged
+    `priceEstimated`, so a guess is never mistaken for a fact; typing a real price
+    replaces it and clears the flag
   - Purchase date / source link
   - Descriptive attribute tags — e.g. sleeve length (short/long/sleeveless/strapless), silhouette, formality (casual/simple/fancy/dressy), material, pattern
   - Custom freeform tags/categories (e.g. "work," "going out," "date," "favorite") — the same tag set used to categorize outfits, so an item can independently show which categories it's associated with
@@ -105,8 +111,11 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
     outfit rather than an accessory to it. Bags sit at hip height against the right edge
   - **Two layers on the same shoulder line are spread apart, not stacked.** Worn, a
     cardigan covers most of the shirt under it — accurate, and useless: the outfit reads
-    as one garment and the piece underneath may as well not be in it. The outer layer is
-    laid off to one side so the two overlap rather than hide, as flat-lay styling does
+    as one garment and the piece underneath may as well not be in it. The two are laid
+    side by side and overlapping, as flat-lay styling does: **outerwear on the left and
+    behind, the top on the right and in front.** Paint order is therefore the reverse of
+    how the pieces are worn, because in a flat lay the garment nearest the skin is the
+    one worth keeping legible where they meet
   - **A layered top and outerwear are drawn at a matched shoulder width.** Garment
     heights come from body landmarks, so a garment's *width* is whatever its
     photograph's aspect ratio makes it — across a real closet that ranges by a factor of
@@ -120,6 +129,9 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
   - **Garments are scaled and anchored as if worn** (see §6, approach D) — per-category anchor boxes sized against a nominal body, with soft contact shadows separating the layers, rather than cutouts stacked at arbitrary sizes. A neutral digital mannequin figure can be rendered behind them to fill the gaps between pieces with exposed arms, neck and legs; it is an optional back layer, deferred until the catalog has full head-to-toe outfits where those gaps appear
 - **Item selection UX:**
   - Horizontal scroll/carousel for each clothing slot (e.g., scroll through all tops, then scroll through all bottoms, then all shoes, then optional accessories/hats)
+  - **A dress does not occupy the top's slot.** A top or sweater is routinely worn over
+    a dress, so the two are separate slots and can both be chosen; the top layers over
+    the dress the way it is worn
   - **Within a slot, items are grouped by kind** — all the jeans together, then the
     trousers, then the skirts — each group under its own label. One undifferentiated row
     of 38 tops is a scrolling problem, not a choosing one; the user knows what *kind* of
@@ -160,7 +172,7 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
 ## 3. Wear Tracking & Analytics
 
 - **Logging wear:**
-  - **A wear is a calendar day, not an event.** Logging the same item twice for one date does not count twice — a repeat tap joins that day. Otherwise cost-per-wear drifts down with every stray tap, and it is the number the app exists to report. Wears can be backdated freely but never forward-dated.
+  - **A wear is a calendar day, not an event.** Logging the same item twice for one date does not count twice — a repeat tap joins that day. Otherwise cost-per-wear drifts down with every stray tap, and it is the number the app exists to report. Wears can be backdated freely, and forward-dated too — see *Planning ahead*.
   - Mark an outfit (or individual items, if worn outside a saved outfit) as "worn today" — or backdate to a past date
   - **Retroactive wear logging is a first-class action, not an edge case.** Occasion pieces — a formal dress worn to a wedding last spring — are worn rarely and unpredictably. The user must be able to add a past wear date directly from an item's detail page (not only through the calendar), so genuinely-worn items can be corrected out of the neglected list. Adding a past wear updates last-worn date, lifetime count, and cost-per-wear exactly as a same-day log would
   - **Per-wear OOTD photos are not in scope** (revised 2026-09-19). The original plan was to
@@ -168,6 +180,17 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
     diary, and the goal here is not a diary — it is seeing an outfit on a body, which an
     outfit-level photo already does. Requiring a photo every morning also guarantees the
     feature goes unused
+  - **Planning ahead: a forward-dated entry is a plan, not a wear.** Deciding on
+    Sunday what to wear on Friday is the other half of what a calendar is for, so a
+    future date is accepted by the same form that logs the past — the row that says "I'm
+    wearing this Friday" simply becomes the row that says "I wore this Friday" when
+    Friday arrives, with nothing to migrate and no two records to disagree. The price of
+    sharing one record is a single rule that must hold everywhere: **a plan is counted
+    nowhere.** Lifetime wears, "last worn", cost-per-wear and the neglected clock all
+    ignore dates ahead of today, because a planned outfit that inflated its own wear
+    count would turn every one of those numbers into a guess about the future. Plans are
+    labelled as such wherever they appear, and a planned day on the calendar is outlined
+    rather than filled, so a month of intentions never reads as a month of wears
   - **What a calendar day shows:** the outfit's photo where it has one, otherwise the outfit's
     composite, otherwise the garment cutouts for a day of loose items. The photo is not a
     record of that day and may well have been taken later — it is simply the best picture of
@@ -177,6 +200,11 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
   - **The composite shows every piece, at composite proportions** — not a grid of
     thumbnails. A capped grid silently drops garments from a larger outfit, and the day a
     five-piece outfit shows four is the day the calendar stops being trustworthy
+  - **An empty day is a way in.** Tapping a day with nothing on it opens a picker for
+    that date, with the date fixed and only the outfit left to choose — the reverse of
+    logging from an outfit's page, and the right way round for the moment the user is
+    already thinking about a particular day. Works in both directions: a past day is a
+    wear being remembered, a future one is a plan
   - **A day in a saved outfit shows, and opens, that outfit as it stands now** — not the
     version that was logged. The wear keeps its own snapshot so exact-combination stats
     stay honest (see *Edited outfits*), but the cell is labelled with the outfit's name
