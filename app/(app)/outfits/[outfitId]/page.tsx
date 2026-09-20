@@ -47,6 +47,7 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
                   subcategory: true,
                   attributes: true,
                   renderHeight: true,
+                  renderWidth: true,
                   priceCents: true,
                   originalImageKey: true,
                   processedImageKey: true,
@@ -97,6 +98,7 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
               subcategory: item.subcategory,
               silhouette: readSilhouette(item.attributes),
               renderHeight: item.renderHeight,
+              renderWidth: item.renderWidth,
               imageUrl: urls.get(item.id) ?? null,
             }))}
             sizes="360px"

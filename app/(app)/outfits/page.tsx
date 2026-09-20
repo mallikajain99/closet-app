@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { FilterChip } from "@/components/catalog/filter-chip";
 import { OutfitFigure } from "@/components/outfits/outfit-figure";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -9,11 +10,24 @@ import { readSilhouette } from "@/lib/validation/item";
 
 export const metadata = { title: "Outfits" };
 
-export default async function OutfitsPage() {
+export default async function OutfitsPage(props: PageProps<"/outfits">) {
+  const searchParams = await props.searchParams;
+  const tag = typeof searchParams.tag === "string" ? searchParams.tag.trim() : "";
   const user = await requireUser();
 
+  // Counts come from the unfiltered set so the chips keep their numbers while filtered,
+  // matching how the catalog's filters behave.
+  const tagCounts = await db.tag.findMany({
+    where: { userId: user.id, outfits: { some: {} } },
+    orderBy: { name: "asc" },
+    select: { name: true, _count: { select: { outfits: true } } },
+  });
+
   const outfits = await db.outfit.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      ...(tag ? { tags: { some: { tag: { name: tag } } } } : {}),
+    },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -33,6 +47,7 @@ export default async function OutfitsPage() {
                   subcategory: true,
                   attributes: true,
                   renderHeight: true,
+                  renderWidth: true,
                   priceCents: true,
                   originalImageKey: true,
                   processedImageKey: true,
@@ -60,6 +75,7 @@ export default async function OutfitsPage() {
           <h1 className="text-3xl font-light tracking-tight">Outfits</h1>
           <p className="mt-1 text-meta text-ink-subtle">
             {outfits.length} {outfits.length === 1 ? "outfit" : "outfits"}
+            {tag && <span className="text-ink-subtle"> tagged &ldquo;{tag}&rdquo;</span>}
           </p>
         </div>
         <Link
@@ -70,13 +86,47 @@ export default async function OutfitsPage() {
         </Link>
       </div>
 
+      {tagCounts.length > 1 && (
+        <nav aria-label="Filter by occasion" className="-mx-6 mt-6 overflow-x-auto px-6">
+          <ul className="flex w-max gap-2 pb-1">
+            <li>
+              <FilterChip href="/outfits" label="All" active={!tag} />
+            </li>
+            {tagCounts.map((entry) => (
+              <li key={entry.name}>
+                <FilterChip
+                  href={`/outfits?tag=${encodeURIComponent(entry.name)}`}
+                  label={entry.name}
+                  count={entry._count.outfits}
+                  active={tag === entry.name}
+                />
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+
       {outfits.length === 0 ? (
         <div className="border-t border-line py-24 text-center">
-          <p className="text-xl font-light">No outfits yet.</p>
-          <p className="mx-auto mt-3 max-w-sm text-meta leading-relaxed text-ink-muted">
-            An outfit is an exact combination of pieces. Save the ones you actually wear
-            and their cost-per-wear starts telling you something.
-          </p>
+          {tag ? (
+            <>
+              <p className="text-xl font-light">Nothing tagged &ldquo;{tag}&rdquo;.</p>
+              <Link
+                href="/outfits"
+                className="label mt-4 inline-block text-ink-subtle underline underline-offset-4 hover:text-ink"
+              >
+                See every outfit
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-xl font-light">No outfits yet.</p>
+              <p className="mx-auto mt-3 max-w-sm text-meta leading-relaxed text-ink-muted">
+                An outfit is an exact combination of pieces. Save the ones you actually
+                wear and their cost-per-wear starts telling you something.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <ul className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 border-t border-line pt-8 sm:grid-cols-3 lg:grid-cols-4">
@@ -101,6 +151,7 @@ export default async function OutfitsPage() {
                         subcategory: item.subcategory,
                         silhouette: readSilhouette(item.attributes),
                         renderHeight: item.renderHeight,
+                        renderWidth: item.renderWidth,
                         imageUrl: urls.get(item.id) ?? null,
                       }))}
                       sizes="(max-width: 640px) 50vw, 240px"

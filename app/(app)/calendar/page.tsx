@@ -1,9 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
+
+import { OutfitFigure } from "@/components/outfits/outfit-figure";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
+import { readSilhouette } from "@/lib/validation/item";
 import {
   WEEKDAYS,
   buildMonthGrid,
@@ -17,8 +19,6 @@ import {
 
 export const metadata = { title: "Calendar" };
 
-/** How many garments a single cell shows before summarising the rest. */
-const MAX_PER_CELL = 4;
 
 export default async function CalendarPage(props: PageProps<"/calendar">) {
   const searchParams = await props.searchParams;
@@ -28,36 +28,66 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
   const user = await requireUser();
 
   const { from, to } = monthRange(month);
+
+  const itemFields = {
+    select: {
+      item: {
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          subcategory: true,
+          attributes: true,
+          renderHeight: true,
+          renderWidth: true,
+          originalImageKey: true,
+          processedImageKey: true,
+          thumbnailKey: true,
+        },
+      },
+    },
+  } as const;
+
   const wears = await db.wearLog.findMany({
     where: { userId: user.id, wornOn: { gte: from, lte: to } },
     orderBy: { wornOn: "asc" },
     select: {
       id: true,
       wornOn: true,
-      items: {
+      outfitId: true,
+      items: itemFields,
+      // The outfit as it stands today, not the version this wear was logged against.
+      // A wear keeps its own snapshot so the exact-combination stats stay honest, but
+      // the cell is labelled with the outfit's name and links to the outfit — showing a
+      // superseded version means the picture disagrees with where it goes. Editing an
+      // outfit to add shoes was silently leaving them off every day already logged.
+      outfit: {
         select: {
-          item: {
-            select: {
-              id: true,
-              name: true,
-              originalImageKey: true,
-              processedImageKey: true,
-              thumbnailKey: true,
-            },
-          },
+          versions: { where: { supersededAt: null }, select: { items: itemFields } },
         },
       },
     },
   });
 
-  const items = wears.flatMap((wear) => wear.items.map((link) => link.item));
+  /** What to show for a wear: the live outfit if it has one, else the logged garments. */
+  const shownItems = (wear: (typeof wears)[number]) =>
+    (wear.outfit?.versions[0]?.items ?? wear.items).map((link) => link.item);
+
+  const items = wears.flatMap(shownItems);
   const urls = await getItemImageUrls(items, "thumbnail");
 
-  // Keyed by ISO date so the grid can look a day up directly.
-  const byDay = new Map<string, typeof items>();
+  // Keyed by ISO date so the grid can look a day up directly. The outfit is carried
+  // alongside, because a day spent in a saved outfit should open that outfit rather
+  // than one of the garments in it.
+  type Day = { items: typeof items; outfitId: string | null };
+  const byDay = new Map<string, Day>();
   for (const wear of wears) {
     const key = isoOf(wear.wornOn);
-    byDay.set(key, [...(byDay.get(key) ?? []), ...wear.items.map((link) => link.item)]);
+    const existing = byDay.get(key);
+    byDay.set(key, {
+      items: [...(existing?.items ?? []), ...shownItems(wear)],
+      outfitId: existing?.outfitId ?? wear.outfitId,
+    });
   }
 
   const weeks = buildMonthGrid(month);
@@ -107,8 +137,8 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
         {weeks.flat().map((cell, index) => {
           if (!cell) return <div key={`pad-${index}`} aria-hidden />;
 
-          const worn = byDay.get(cell.iso) ?? [];
-          const shown = worn.slice(0, MAX_PER_CELL);
+          const day = byDay.get(cell.iso);
+          const worn = day?.items ?? [];
 
           return (
             <div
@@ -129,41 +159,34 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
                 {cell.day}
               </span>
 
-              {shown.length > 0 && (
-                <div
-                  className={`absolute inset-0 grid ${
-                    shown.length === 1 ? "grid-cols-1" : "grid-cols-2"
-                  }`}
+              {worn.length > 0 && (
+                <Link
+                  // A saved outfit opens the outfit; a day of loose items opens the
+                  // first garment.
+                  href={day?.outfitId ? `/outfits/${day.outfitId}` : `/catalog/${worn[0].id}`}
+                  title={worn.map((item) => item.name).join(", ")}
+                  className="absolute inset-0 flex items-center justify-center"
                 >
-                  {shown.map((item) => {
-                    const url = urls.get(item.id);
-                    return (
-                      <Link
-                        key={item.id}
-                        href={`/catalog/${item.id}`}
-                        title={item.name}
-                        className="relative overflow-hidden"
-                      >
-                        {url && (
-                          <Image
-                            src={url}
-                            alt={item.name}
-                            fill
-                            unoptimized
-                            sizes="120px"
-                            className="object-contain"
-                          />
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-
-              {worn.length > MAX_PER_CELL && (
-                <span className="label absolute bottom-1 right-1 z-10 text-ink-subtle">
-                  +{worn.length - MAX_PER_CELL}
-                </span>
+                  {/* The same composite the outfit pages use, rather than a grid of
+                      thumbnails capped at four — which silently dropped pieces from a
+                      bigger outfit. Two-thirds of a square cell's width makes the 2:3
+                      figure exactly as tall as the cell. */}
+                  <div className="h-full" style={{ width: "66.67%" }}>
+                    <OutfitFigure
+                      items={worn.map((item) => ({
+                        id: item.id,
+                        name: item.name,
+                        category: item.category,
+                        subcategory: item.subcategory,
+                        silhouette: readSilhouette(item.attributes),
+                        renderHeight: item.renderHeight,
+                        renderWidth: item.renderWidth,
+                        imageUrl: urls.get(item.id) ?? null,
+                      }))}
+                      sizes="120px"
+                    />
+                  </div>
+                </Link>
               )}
             </div>
           );

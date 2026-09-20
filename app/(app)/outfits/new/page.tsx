@@ -9,8 +9,13 @@ import { BUILDER_SLOTS } from "@/lib/outfits/slots";
 
 export const metadata = { title: "Build an outfit" };
 
-export default async function NewOutfitPage() {
+export default async function NewOutfitPage(props: PageProps<"/outfits/new">) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
+
+  // Arriving from an item's page, with that garment already in its slot. The id is
+  // checked against the user's own items below rather than trusted from the URL.
+  const requested = typeof searchParams.item === "string" ? [searchParams.item] : [];
 
   const [items, tags] = await Promise.all([
     db.item.findMany({
@@ -25,6 +30,7 @@ export default async function NewOutfitPage() {
         subcategory: true,
         colors: true,
         renderHeight: true,
+        renderWidth: true,
         originalImageKey: true,
         processedImageKey: true,
         thumbnailKey: true,
@@ -53,6 +59,7 @@ export default async function NewOutfitPage() {
         subcategory: item.subcategory,
         colors: item.colors,
         renderHeight: item.renderHeight,
+        renderWidth: item.renderWidth,
         imageUrl: urls.get(item.id) ?? null,
       }));
   }
@@ -71,6 +78,7 @@ export default async function NewOutfitPage() {
           itemsBySlot={itemsBySlot}
           allTags={tags.map((tag) => tag.name)}
           action={createOutfit}
+          initialItemIds={requested.filter((id) => items.some((item) => item.id === id))}
         />
       </div>
     </main>
