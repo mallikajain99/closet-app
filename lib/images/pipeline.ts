@@ -15,6 +15,7 @@ import { type Category, type PrismaClient } from "@prisma/client";
 import sharp from "sharp";
 
 import { db } from "@/lib/db";
+import { toDecodable } from "@/lib/images/decode";
 import { ORIGINALS_BUCKET, PROCESSED_BUCKET } from "@/lib/images/storage.client";
 import {
   CANVAS_SIZE,
@@ -219,7 +220,8 @@ export async function runPipeline(
           .download(item.originalImageKey);
         if (error || !data) throw new Error(`download failed: ${error?.message ?? "no data"}`);
 
-        const original = Buffer.from(await data.arrayBuffer());
+        // Phones upload HEIC, which sharp cannot always decode — convert first.
+        const original = await toDecodable(Buffer.from(await data.arrayBuffer()));
         const cutout = await cutOutGarment(original);
         return normalizeCutout(cutout, item.category);
       },
