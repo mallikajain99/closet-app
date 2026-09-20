@@ -35,6 +35,9 @@ enum Category {
 enum Slot {
   HEAD
   TOP
+  /// Separate from TOP so a top or sweater can be worn *over* a dress. Sharing the slot
+  /// made them mutually exclusive in the builder, which the wardrobe is not.
+  DRESS
   OUTER
   BOTTOM
   SHOES

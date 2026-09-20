@@ -3,6 +3,7 @@ import type { Category } from "@prisma/client";
 
 import { CATEGORY_EXTENT } from "@/lib/images/normalize";
 import {
+  BUILDER_SLOTS,
   CATEGORY_SLOT,
   FLOOR,
   SHOULDER,
@@ -53,14 +54,16 @@ describe("landmark anchoring", () => {
 });
 
 describe("byPaintOrder", () => {
-  it("paints outerwear over the top, and the top over the waistband", () => {
+  it("paints the top over its outerwear, and both over the waistband", () => {
     const order = byPaintOrder([
       { category: "OUTERWEAR" as Category },
       { category: "BOTTOM" as Category },
       { category: "TOP" as Category },
     ]).map((item) => item.category);
 
-    expect(order).toEqual(["BOTTOM", "TOP", "OUTERWEAR"]);
+    // Backwards as clothing, right as a flat lay: the upper layers sit side by side,
+    // and the piece worn next to the skin is the one to keep legible where they meet.
+    expect(order).toEqual(["BOTTOM", "OUTERWEAR", "TOP"]);
   });
 
   it("paints shoes and accessories in front of the clothes", () => {
@@ -264,8 +267,8 @@ describe("layer spread", () => {
     const top = placed.find((p) => p.item.category === "TOP")!;
     const outer = placed.find((p) => p.item.category === "OUTERWEAR")!;
 
-    expect(top.offsetX).toBeLessThan(0);
-    expect(outer.offsetX).toBeGreaterThan(0);
+    expect(outer.offsetX).toBeLessThan(0);
+    expect(top.offsetX).toBeGreaterThan(0);
     expect(top.offsetX).toBeCloseTo(-outer.offsetX, 5);
   });
 
@@ -292,5 +295,52 @@ describe("layer spread", () => {
         expect(p.offsetX).toBe(0);
       }
     }
+  });
+});
+
+describe("a top worn over a dress", () => {
+  it("gives a dress its own slot so both can be chosen", () => {
+    const slots = BUILDER_SLOTS.map((s) => s.slot);
+    expect(new Set(slots).size).toBe(slots.length);
+    const dress = BUILDER_SLOTS.find((s) => s.categories.includes("DRESS"))!;
+    const top = BUILDER_SLOTS.find((s) => s.categories.includes("TOP"))!;
+    expect(dress.slot).not.toBe(top.slot);
+  });
+
+  it("paints the top over the dress, and the dress over its outerwear", () => {
+    const order = byPaintOrder([
+      { category: "TOP" as Category },
+      { category: "OUTERWEAR" as Category },
+      { category: "DRESS" as Category },
+    ]).map((item) => item.category);
+    expect(order).toEqual(["OUTERWEAR", "DRESS", "TOP"]);
+  });
+
+  it("spreads three layers across the frame with the middle one centred", () => {
+    const { placed } = composeOutfit([
+      { category: "TOP" as const },
+      { category: "OUTERWEAR" as const },
+      { category: "DRESS" as const },
+    ]);
+    const at = (category: Category) => placed.find((p) => p.item.category === category)!.offsetX;
+    expect(at("OUTERWEAR")).toBeLessThan(0);
+    expect(at("DRESS")).toBeCloseTo(0, 5);
+    expect(at("TOP")).toBeGreaterThan(0);
+  });
+
+  it("never rescales a dress to match a shoulder", () => {
+    // Matching widths works by scaling, which would drag the hem with it.
+    const dress = {
+      category: "DRESS" as const,
+      subcategory: "maxi dress",
+      renderWidth: 300,
+      renderHeight: 900,
+    };
+    const { placed } = composeOutfit([
+      dress,
+      { category: "OUTERWEAR" as const, subcategory: "coat", renderWidth: 900, renderHeight: 700 },
+    ]);
+    const placedDress = placed.find((p) => p.item.category === "DRESS")!;
+    expect(placedDress.height).toBeCloseTo(layoutFor(dress).height, 5);
   });
 });

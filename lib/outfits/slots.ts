@@ -9,8 +9,8 @@ import type { Category, Slot } from "@prisma/client";
  * garment to fill its tile, a body wants it at body proportions, and one set of numbers
  * cannot serve both.
  *
- * `z` is paint order, back to front. A jacket goes over a top; a top goes over a
- * waistband.
+ * `z` is paint order, back to front. A top goes over a waistband, and — because the
+ * upper layers are laid side by side rather than stacked — over its own outerwear.
  *
  * Note: `scripts/outfit-preview.ts` has its own `COMPOSITE_GEOMETRY` and no longer
  * reads this table — it still uses the pre-landmark `centre` model, so it is a stale
@@ -67,9 +67,16 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
 
   // Everything worn on the upper body hangs from the shoulders, so they all share one
   // anchor and only their hems differ.
+  // Outerwear paints *behind* the top, which is backwards as clothing and right as a
+  // flat lay: the two are laid side by side rather than stacked, and the piece worn
+  // next to the skin is the one you want legible where they meet. Still over the
+  // waistband, so the pair reads as one torso above the trousers.
+  OUTERWEAR: { slot: "OUTER", label: "Outerwear", height: 0.42, anchor: SHOULDER, edge: "top", z: 25 },
+  // A dress is its own slot, not the top's: a top or sweater is routinely worn over
+  // one, and sharing a slot made the two mutually exclusive in the builder. It paints
+  // behind the top for the same reason, since the top is the layer worn over it.
+  DRESS: { slot: "DRESS", label: "Dress", height: 0.58, anchor: SHOULDER, edge: "top", z: 28 },
   TOP: { slot: "TOP", label: "Top", height: 0.31, anchor: SHOULDER, edge: "top", z: 30 },
-  OUTERWEAR: { slot: "OUTER", label: "Outerwear", height: 0.42, anchor: SHOULDER, edge: "top", z: 40 },
-  DRESS: { slot: "TOP", label: "Dress", height: 0.58, anchor: SHOULDER, edge: "top", z: 30 },
 
   // Everything worn on the lower body hangs from the waist.
   BOTTOM: { slot: "BOTTOM", label: "Bottom", height: 0.5, anchor: WAIST, edge: "top", z: 20 },
@@ -93,7 +100,8 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
 export const BUILDER_SLOTS = [
   { slot: "HEAD" as Slot, label: "Hat", categories: ["HAT"] as Category[] },
   { slot: "OUTER" as Slot, label: "Outerwear", categories: ["OUTERWEAR"] as Category[] },
-  { slot: "TOP" as Slot, label: "Top", categories: ["TOP", "DRESS"] as Category[] },
+  { slot: "DRESS" as Slot, label: "Dress", categories: ["DRESS"] as Category[] },
+  { slot: "TOP" as Slot, label: "Top", categories: ["TOP"] as Category[] },
   { slot: "BOTTOM" as Slot, label: "Bottom", categories: ["BOTTOM"] as Category[] },
   { slot: "SHOES" as Slot, label: "Shoes", categories: ["SHOE"] as Category[] },
   { slot: "BAG" as Slot, label: "Bag", categories: ["BAG"] as Category[] },
@@ -136,9 +144,10 @@ const LENGTH_OVERRIDES: Array<{
   // Grouped, not `\bmaxi|gown\b` — in an alternation the word boundaries bind to the
   // first and last branch only, so the unbracketed form anchors neither middle term.
   { match: /\b(maxi|gown)\b/i, categories: ["DRESS"], height: 0.78 },
-  // Neither of these says its length, but both have one: a knit dress is cut short,
-  // and a gown reaches the floor. Without them both fall to the category default.
-  { match: /\b(sweater|knit) dress\b/i, categories: ["DRESS"], height: 0.5 },
+  // None of these says its length, but each has one by convention: a knit dress is cut
+  // short, a shift or sheath ends around the knee, and a gown reaches the floor.
+  // Without them they all fall to the category default.
+  { match: /\b(sweater|knit|shift|sheath) dress\b/i, categories: ["DRESS"], height: 0.5 },
 ];
 
 
@@ -236,7 +245,10 @@ function drawnWidth(subject: LayoutSubject, height: number): number | null {
 function matchShoulders<T extends LayoutSubject>(
   spans: Array<{ item: T; top: number; height: number }>,
 ): void {
-  const inner = spans.find((s) => s.item.category === "TOP" || s.item.category === "DRESS");
+  // Tops only, never dresses. Matching widths works by scaling, and scaling a dress to
+  // a shirt's shoulder width would drag its hem with it — a dress's length is stated by
+  // its own length rule, which is not a number to overrule for the sake of a shoulder.
+  const inner = spans.find((s) => s.item.category === "TOP");
   const outer = spans.find((s) => s.item.category === "OUTERWEAR");
   if (!inner || !outer) return;
 
@@ -273,6 +285,15 @@ function matchShoulders<T extends LayoutSubject>(
  */
 const LAYER_SPREAD = 0.13;
 
+/**
+ * The garments that hang from the shoulder line, back to front.
+ *
+ * These are the ones that can cover each other, so these are the ones spread apart.
+ * Jewelry shares the anchor but is an accessory sitting on top of everything, not a
+ * layer competing for the same space.
+ */
+const LAYERED_CATEGORIES: Category[] = ["OUTERWEAR", "DRESS", "TOP"];
+
 export type PlacedGarment<T> = {
   item: T;
   top: number;
@@ -300,14 +321,19 @@ export function composeOutfit<T extends LayoutSubject>(
   // clamp all read them, so resizing afterwards would crop the garment it just grew.
   matchShoulders(spans);
 
-  // Spread the two shoulder-hung layers apart, but only when there are two. A lone top
-  // belongs on the centre line. The outer layer goes right, which puts a cardigan's
-  // opening over the shirt's body rather than over its own placket.
-  const inner = spans.find((s) => s.item.category === "TOP" || s.item.category === "DRESS");
-  const outer = spans.find((s) => s.item.category === "OUTERWEAR");
-  if (inner && outer) {
-    inner.offsetX = -LAYER_SPREAD;
-    outer.offsetX = LAYER_SPREAD;
+  // Spread the shoulder-hung layers apart, but only when there is more than one — a
+  // lone top belongs on the centre line. Laid out back to front, left to right, so the
+  // piece in front sits rightmost the way a flat lay is arranged. Three layers (a
+  // cardigan, a dress and a top over it) put the middle one on the centre line.
+  const layers = LAYERED_CATEGORIES.map((category) =>
+    spans.find((s) => s.item.category === category),
+  ).filter((span) => span !== undefined);
+
+  if (layers.length > 1) {
+    const step = (LAYER_SPREAD * 2) / (layers.length - 1);
+    layers.forEach((span, index) => {
+      span.offsetX = -LAYER_SPREAD + index * step;
+    });
   }
 
   // Walk down the figure pulling each garment up to meet the one above. `reach` is the
