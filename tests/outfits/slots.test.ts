@@ -12,7 +12,6 @@ import {
   layoutFor,
 } from "@/lib/outfits/slots";
 
-const CATEGORIES = Object.keys(CATEGORY_SLOT) as Category[];
 
 describe("landmark anchoring", () => {
   it("hangs every upper-body garment from the same shoulder line", () => {
