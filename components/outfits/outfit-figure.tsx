@@ -44,9 +44,19 @@ export function OutfitFigure({
   const layered = byPaintOrder(items);
 
   return (
-    // 2:3 rather than 3:4 — a standing figure is much taller than it is wide, and the
-    // wider frame left the stack marooned in whitespace.
-    <div className={`relative aspect-[2/3] w-full overflow-hidden ${className}`}>
+    /**
+     * 2:3 — a standing figure is far taller than it is wide, and a wider frame left the
+     * stack marooned in whitespace.
+     *
+     * The ratio comes from padding rather than `aspect-ratio`, and the layers live in an
+     * `inset-0` child. Each layer sets a percentage height, and a percentage resolves
+     * against the containing block's height — which an `aspect-ratio` box does not
+     * reliably provide, so every layer collapsed to zero and the outfit rendered blank.
+     * Padding gives the wrapper a definite height, and `inset-0` passes it down.
+     */
+    <div className={`relative w-full overflow-hidden ${className}`}>
+      <div style={{ paddingTop: "150%" }} />
+      <div className="absolute inset-0">
       {layered.map((item) => {
         const position = positions.get(item.id);
         if (!item.imageUrl || !position) return null;
@@ -78,6 +88,7 @@ export function OutfitFigure({
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
