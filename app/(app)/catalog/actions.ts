@@ -9,6 +9,10 @@ import { db } from "@/lib/db";
 import { PROCESSED_BUCKET } from "@/lib/images/storage.client";
 import { createSignedUpload, deleteImage } from "@/lib/images/storage";
 import { processItemImage } from "@/lib/images/pipeline";
+import {
+  captureAutoNamedOutfits,
+  refreshOutfitNames,
+} from "@/lib/outfits/naming-sync";
 import { canonicalize, normalizeSize, normalizeTitle } from "@/lib/text";
 import {
   buildAttributes,
@@ -247,9 +251,12 @@ export async function updateItem(
   if (!existing) return { ok: false, message: "That item no longer exists." };
 
   const input = parsed.data;
-  const [tags, canonical] = await Promise.all([
+  const [tags, canonical, autoNamedOutfits] = await Promise.all([
     connectTags(user.id, input.tagNames),
     canonicalizeFields(user.id, input),
+    // Must be read before the item changes: an auto-generated outfit name is
+    // recognised by matching the suggestions for the item's *old* values.
+    captureAutoNamedOutfits(user.id, itemId),
   ]);
   const imageChanged =
     input.originalImageKey && input.originalImageKey !== existing.originalImageKey;
@@ -284,7 +291,11 @@ export async function updateItem(
     scheduleProcessing(existing.id);
   }
 
+  // Outfits named after this garment follow it; ones the user named do not.
+  await refreshOutfitNames(autoNamedOutfits);
+
   revalidatePath("/catalog");
+  revalidatePath("/outfits");
   revalidatePath(`/catalog/${itemId}`);
   redirect(`/catalog/${itemId}`);
 }

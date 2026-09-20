@@ -155,6 +155,9 @@ model Tag {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name      String
+  /// False once the user types their own name, so an item rename can refresh the
+  /// suggested ones without clobbering a deliberate choice.
+  autoNamed Boolean  @default(true)
   createdAt DateTime @default(now())
 
   items   ItemTag[]

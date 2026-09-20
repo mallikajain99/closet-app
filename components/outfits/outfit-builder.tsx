@@ -31,13 +31,30 @@ export function OutfitBuilder({
   itemsBySlot,
   allTags,
   action,
+  initialItemIds = [],
+  initialName = "",
+  initialTags = [],
+  submitLabel = "Save outfit",
 }: {
   itemsBySlot: Record<string, PickableItem[]>;
   allTags: string[];
   action: (prev: OutfitResult | null, formData: FormData) => Promise<OutfitResult>;
+  initialItemIds?: readonly string[];
+  initialName?: string;
+  initialTags?: string[];
+  submitLabel?: string;
 }) {
   const [result, formAction, pending] = useActionState(action, null);
-  const [chosen, setChosen] = useState<Partial<Record<Slot, PickableItem>>>({});
+
+  const [chosen, setChosen] = useState<Partial<Record<Slot, PickableItem>>>(() => {
+    // Editing starts from what the outfit already contains.
+    const start: Partial<Record<Slot, PickableItem>> = {};
+    for (const [slot, options] of Object.entries(itemsBySlot)) {
+      const match = options.find((item) => initialItemIds.includes(item.id));
+      if (match) start[slot as Slot] = match;
+    }
+    return start;
+  });
 
   const selected = useMemo(
     () => Object.values(chosen).filter(Boolean) as PickableItem[],
@@ -54,8 +71,8 @@ export function OutfitBuilder({
    * name that merely happens to match a suggestion shouldn't be treated as untouched.
    * Clearing the field hands control back.
    */
-  const [name, setName] = useState("");
-  const [edited, setEdited] = useState(false);
+  const [name, setName] = useState(initialName);
+  const [edited, setEdited] = useState(initialName.length > 0);
   const value = edited ? name : (suggestions[0] ?? "");
 
   const toggle = (slot: Slot, item: PickableItem) =>
@@ -189,7 +206,7 @@ export function OutfitBuilder({
               name="tags"
               label="Add a tag"
               placeholder="Work, date night…"
-              defaultValue={[]}
+              defaultValue={initialTags}
               suggestions={allTags}
             />
           </div>
@@ -212,7 +229,7 @@ export function OutfitBuilder({
             disabled={pending || selected.length === 0}
             className="label bg-ink px-8 py-3 text-canvas transition-opacity hover:opacity-90 disabled:opacity-40"
           >
-            {pending ? "Saving…" : "Save outfit"}
+            {pending ? "Saving…" : submitLabel}
           </button>
           {selected.length === 0 && (
             <span className="text-meta text-ink-subtle">Pick at least one piece.</span>

@@ -2,9 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { deleteOutfit } from "@/app/(app)/outfits/actions";
+import {
+  deleteOutfit,
+  logOutfitWear,
+  removeOutfitWear,
+} from "@/app/(app)/outfits/actions";
 import { DeleteItemButton } from "@/components/catalog/delete-item-button";
 import { OutfitFigure } from "@/components/outfits/outfit-figure";
+import { LogWear } from "@/components/wears/log-wear";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
@@ -23,6 +28,11 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
       name: true,
       tags: { select: { tag: { select: { name: true } } } },
       _count: { select: { wearLogs: true } },
+      wearLogs: {
+        orderBy: { wornOn: "desc" },
+        take: 8,
+        select: { id: true, wornOn: true },
+      },
       currentVersion: {
         select: {
           items: {
@@ -54,6 +64,11 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
 
   const items = (outfit.currentVersion?.items ?? []).map((link) => link.item);
   const urls = await getItemImageUrls(items, "thumbnail");
+
+  // Wear dates are stored as UTC midnight, so they must be formatted in UTC too.
+  const dateLabel = (date: Date) =>
+    date.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" });
+  const lastWorn = outfit.wearLogs[0]?.wornOn ?? null;
 
   const { costPerWearCents: cpw, hasCompletePricing, pricedItemCount, totalItemCount } =
     outfitCostPerWear(
@@ -95,6 +110,9 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
               <dd className="mt-1 text-3xl font-light tabular-nums">
                 {outfit._count.wearLogs}
               </dd>
+              <p className="mt-1 text-meta text-ink-subtle">
+                {lastWorn ? `Last worn ${dateLabel(lastWorn)}` : "Not worn yet"}
+              </p>
             </div>
             <div>
               <dt className="label text-ink-subtle">Cost per wear</dt>
@@ -121,6 +139,17 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
               ))}
             </ul>
           )}
+
+          <LogWear
+            today={new Date().toISOString().slice(0, 10)}
+            recent={outfit.wearLogs.map((wear) => ({
+              id: wear.id,
+              wornOn: wear.wornOn.toISOString().slice(0, 10),
+              label: dateLabel(wear.wornOn),
+            }))}
+            action={logOutfitWear.bind(null, outfit.id)}
+            remove={removeOutfitWear.bind(null, outfit.id)}
+          />
 
           <p className="label mt-8 text-ink-subtle">Pieces</p>
           <ul className="mt-3 grid gap-3">
@@ -159,6 +188,12 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
           </ul>
 
           <div className="mt-10 flex items-center gap-6 border-t border-line pt-6">
+            <Link
+              href={`/outfits/${outfit.id}/edit`}
+              className="label bg-ink px-6 py-3 text-canvas transition-opacity hover:opacity-90"
+            >
+              Edit
+            </Link>
             <DeleteItemButton
               itemName={outfit.name}
               action={deleteOutfit.bind(null, outfit.id)}
