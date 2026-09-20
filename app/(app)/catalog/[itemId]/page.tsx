@@ -16,6 +16,7 @@ import { db } from "@/lib/db";
 import { getItemImageUrl } from "@/lib/images/storage";
 import { costPerWearCents, formatCents } from "@/lib/stats/cost-per-wear";
 import { CATEGORY_LABELS, STATUS_LABELS, readSilhouette } from "@/lib/validation/item";
+import { happened, hasHappened } from "@/lib/wears/planned";
 
 /** Reprocessing runs via `after()` inside this request — see `catalog/new/page.tsx`. */
 export const maxDuration = 60;
@@ -28,7 +29,9 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
     where: { id: itemId, userId: user.id },
     include: {
       tags: { include: { tag: true } },
-      _count: { select: { wearLogItems: true } },
+      // Planned wears are excluded: a date still in the future is an intention, and
+      // counting it would inflate the wear count and deflate cost-per-wear.
+      _count: { select: { wearLogItems: { where: { wearLog: happened() } } } },
     },
   });
 
@@ -57,7 +60,9 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
   const dateLabel = (date: Date) =>
     date.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" });
 
-  const lastWorn = wears[0]?.wornOn ?? null;
+  // "Last worn" is about the past, so it skips anything still planned — otherwise
+  // planning Friday's outfit would mark the garment worn and clear its neglected flag.
+  const lastWorn = wears.find((wear) => hasHappened(wear.wornOn))?.wornOn ?? null;
 
   const wearCount = item._count.wearLogItems;
   const cpw = costPerWearCents(item.priceCents, wearCount);
@@ -194,6 +199,7 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
               id: wear.id,
               wornOn: wear.wornOn.toISOString().slice(0, 10),
               label: dateLabel(wear.wornOn),
+              planned: !hasHappened(wear.wornOn),
             }))}
             action={logItemWear.bind(null, item.id)}
             remove={removeItemWear.bind(null, item.id)}

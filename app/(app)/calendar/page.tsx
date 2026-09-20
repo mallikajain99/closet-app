@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
 import { readSilhouette } from "@/lib/validation/item";
+import { hasHappened } from "@/lib/wears/planned";
 import {
   WEEKDAYS,
   buildMonthGrid,
@@ -79,7 +80,7 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
   // Keyed by ISO date so the grid can look a day up directly. The outfit is carried
   // alongside, because a day spent in a saved outfit should open that outfit rather
   // than one of the garments in it.
-  type Day = { items: typeof items; outfitId: string | null };
+  type Day = { items: typeof items; outfitId: string | null; planned: boolean };
   const byDay = new Map<string, Day>();
   for (const wear of wears) {
     const key = isoOf(wear.wornOn);
@@ -87,6 +88,7 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
     byDay.set(key, {
       items: [...(existing?.items ?? []), ...shownItems(wear)],
       outfitId: existing?.outfitId ?? wear.outfitId,
+      planned: !hasHappened(wear.wornOn),
     });
   }
 
@@ -97,7 +99,8 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
     new Date().getDate(),
   )));
 
-  const wornDays = byDay.size;
+  const wornDays = [...byDay.values()].filter((day) => !day.planned).length;
+  const plannedDays = [...byDay.values()].filter((day) => day.planned).length;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-12">
@@ -105,9 +108,12 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
         <div>
           <h1 className="text-3xl font-light tracking-tight">{monthLabel(month)}</h1>
           <p className="mt-1 text-meta text-ink-subtle">
-            {wornDays === 0
-              ? "Nothing logged yet"
-              : `${wornDays} ${wornDays === 1 ? "day" : "days"} logged`}
+            {[
+              wornDays > 0 && `${wornDays} ${wornDays === 1 ? "day" : "days"} logged`,
+              plannedDays > 0 && `${plannedDays} planned`,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "Nothing logged yet"}
           </p>
         </div>
 
@@ -146,9 +152,13 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
               className={
                 // Image-first: the garments fill the cell and the date recedes. Empty
                 // days get no fill at all, so a sparse month reads as sparse.
-                worn.length > 0
-                  ? "relative aspect-square bg-surface-sunken"
-                  : "relative aspect-square"
+                // A planned day is outlined rather than filled: it reads as pencilled
+                // in, and keeps a month of intentions from looking like a month of wears.
+                worn.length === 0
+                  ? "relative aspect-square"
+                  : day?.planned
+                    ? "relative aspect-square border border-dashed border-line-strong"
+                    : "relative aspect-square bg-surface-sunken"
               }
             >
               <span
@@ -159,12 +169,24 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
                 {cell.day}
               </span>
 
+              {/* An empty day is a way in, not just a blank: tapping it is the moment
+                  the user is already thinking about that date, so it opens a picker
+                  with the date fixed and only the outfit left to choose. Past days
+                  work too — an empty cell is often a wear not yet remembered. */}
+              {worn.length === 0 && (
+                <Link
+                  href={`/calendar/${cell.iso}`}
+                  aria-label={`Add an outfit for ${cell.iso}`}
+                  className="absolute inset-0 transition-colors hover:bg-surface-sunken"
+                />
+              )}
+
               {worn.length > 0 && (
                 <Link
                   // A saved outfit opens the outfit; a day of loose items opens the
                   // first garment.
                   href={day?.outfitId ? `/outfits/${day.outfitId}` : `/catalog/${worn[0].id}`}
-                  title={worn.map((item) => item.name).join(", ")}
+                  title={`${day?.planned ? "Planned: " : ""}${worn.map((item) => item.name).join(", ")}`}
                   className="absolute inset-0 flex items-center justify-center"
                 >
                   {/* The same composite the outfit pages use, rather than a grid of

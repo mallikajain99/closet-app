@@ -56,13 +56,12 @@ describe("wearInputSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects a future date", () => {
-    // Forward-dating is always a mistake and would push "last worn" into the future.
-    const parsed = wearInputSchema.safeParse({ wornOn: dateOf(1) });
-    expect(parsed.success).toBe(false);
-    if (!parsed.success) {
-      expect(parsed.error.issues[0].message).toMatch(/hasn't happened yet/);
-    }
+  it("accepts a future date, which is how an outfit gets planned", () => {
+    // Forward dates used to be rejected as always-a-mistake. They are a plan instead:
+    // what keeps them honest is that nothing counts them until the day arrives, which
+    // `hasHappened` enforces rather than the parser.
+    const parsed = wearInputSchema.safeParse({ wornOn: dateOf(3) });
+    expect(parsed.success).toBe(true);
   });
 
   it("treats a blank note as absent", () => {

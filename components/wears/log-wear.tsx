@@ -5,7 +5,13 @@ import { useActionState, useState, useTransition } from "react";
 
 import type { WearResult } from "@/app/(app)/wears/actions";
 
-export type RecentWear = { id: string; wornOn: string; label: string };
+export type RecentWear = {
+  id: string;
+  wornOn: string;
+  label: string;
+  /** Dated ahead of today: a plan, which counts towards nothing until the day comes. */
+  planned?: boolean;
+};
 
 /**
  * Log a wear from the item page — today with one tap, or backdated.
@@ -13,6 +19,11 @@ export type RecentWear = { id: string; wornOn: string; label: string };
  * Backdating is deliberately not hidden behind a disclosure: the spec makes it a
  * first-class action because occasion pieces get worn and only remembered later, and
  * that is exactly what rescues them from the neglected list.
+ *
+ * Forward dates are allowed too, and mean something different: a plan. The same form
+ * files both, because "what I'll wear Friday" and "what I wore Friday" are the same
+ * entry seen from either side of Friday — but a plan is labelled as one and is counted
+ * nowhere until the date arrives.
  */
 export function LogWear({
   today,
@@ -53,7 +64,6 @@ export function LogWear({
           type="date"
           name="wornOn"
           value={wornOn}
-          max={today}
           onChange={(event) => setWornOn(event.target.value)}
           aria-label="Date worn"
           className="border border-line-strong bg-surface px-3 py-2 text-meta text-ink focus:border-ink focus:outline-none"
@@ -63,7 +73,13 @@ export function LogWear({
           disabled={pending}
           className="label bg-ink px-5 py-2.5 text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {pending ? "Logging…" : wornOn === today ? "Worn today" : "Add this wear"}
+          {pending
+            ? "Saving…"
+            : wornOn === today
+              ? "Worn today"
+              : wornOn > today
+                ? "Plan this outfit"
+                : "Add this wear"}
         </button>
       </form>
 
@@ -78,6 +94,7 @@ export function LogWear({
           {recent.map((wear) => (
             <li key={wear.id} className="flex items-center gap-3 text-meta text-ink-muted">
               <span className="tabular-nums">{wear.label}</span>
+              {wear.planned && <span className="label text-ink-subtle">Planned</span>}
               <button
                 type="button"
                 disabled={removing}

@@ -16,6 +16,7 @@ import { getItemImageUrls } from "@/lib/images/storage";
 import { costPerWearCents, formatCents, outfitCostPerWear } from "@/lib/stats/cost-per-wear";
 import { CATEGORY_SLOT } from "@/lib/outfits/slots";
 import { readSilhouette } from "@/lib/validation/item";
+import { happened, hasHappened } from "@/lib/wears/planned";
 
 export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfitId]">) {
   const { outfitId } = await props.params;
@@ -27,7 +28,8 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
       id: true,
       name: true,
       tags: { select: { tag: { select: { name: true } } } },
-      _count: { select: { wearLogs: true } },
+      // Plans excluded — see lib/wears/planned.ts.
+      _count: { select: { wearLogs: { where: happened() } } },
       wearLogs: {
         orderBy: { wornOn: "desc" },
         take: 8,
@@ -52,7 +54,7 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
                   originalImageKey: true,
                   processedImageKey: true,
                   thumbnailKey: true,
-                  _count: { select: { wearLogItems: true } },
+                  _count: { select: { wearLogItems: { where: { wearLog: happened() } } } },
                 },
               },
             },
@@ -70,7 +72,7 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
   // Wear dates are stored as UTC midnight, so they must be formatted in UTC too.
   const dateLabel = (date: Date) =>
     date.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" });
-  const lastWorn = outfit.wearLogs[0]?.wornOn ?? null;
+  const lastWorn = outfit.wearLogs.find((w) => hasHappened(w.wornOn))?.wornOn ?? null;
 
   const { costPerWearCents: cpw, hasCompletePricing, pricedItemCount, totalItemCount } =
     outfitCostPerWear(
@@ -150,6 +152,7 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
               id: wear.id,
               wornOn: wear.wornOn.toISOString().slice(0, 10),
               label: dateLabel(wear.wornOn),
+              planned: !hasHappened(wear.wornOn),
             }))}
             action={logOutfitWear.bind(null, outfit.id)}
             remove={removeOutfitWear.bind(null, outfit.id)}

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
 import { outfitCostPerWear, formatCents } from "@/lib/stats/cost-per-wear";
 import { readSilhouette } from "@/lib/validation/item";
+import { happened } from "@/lib/wears/planned";
 
 export const metadata = { title: "Outfits" };
 
@@ -32,7 +33,8 @@ export default async function OutfitsPage(props: PageProps<"/outfits">) {
     select: {
       id: true,
       name: true,
-      _count: { select: { wearLogs: true } },
+      // Plans excluded — see lib/wears/planned.ts.
+      _count: { select: { wearLogs: { where: happened() } } },
       tags: { select: { tag: { select: { name: true } } } },
       currentVersion: {
         select: {
@@ -52,7 +54,7 @@ export default async function OutfitsPage(props: PageProps<"/outfits">) {
                   originalImageKey: true,
                   processedImageKey: true,
                   thumbnailKey: true,
-                  _count: { select: { wearLogItems: true } },
+                  _count: { select: { wearLogItems: { where: { wearLog: happened() } } } },
                 },
               },
             },

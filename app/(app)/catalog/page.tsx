@@ -10,6 +10,7 @@ import { getItemImageUrls } from "@/lib/images/storage";
 import { activeFilterCount, buildWhere, parseFilters } from "@/lib/items/filters";
 import { countFacets } from "@/lib/items/facets";
 import { CATEGORY_PLURAL } from "@/lib/validation/item";
+import { happened } from "@/lib/wears/planned";
 
 export const metadata = { title: "Closet" };
 
@@ -50,7 +51,8 @@ export default async function CatalogPage(props: PageProps<"/catalog">) {
       originalImageKey: true,
       processedImageKey: true,
       thumbnailKey: true,
-      _count: { select: { wearLogItems: true } },
+      // Plans excluded — see lib/wears/planned.ts.
+      _count: { select: { wearLogItems: { where: { wearLog: happened() } } } },
     },
   });
 

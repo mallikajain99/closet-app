@@ -38,12 +38,10 @@ export const wearInputSchema = z.object({
         ctx.addIssue({ code: "custom", message: "Not a valid date" });
         return z.NEVER;
       }
-      // A wear is something that happened. Backdating is a first-class action (spec §3);
-      // forward-dating is always a mistake, and would skew "last worn" into the future.
-      if (parsed.getTime() > todayUtc().getTime()) {
-        ctx.addIssue({ code: "custom", message: "That date hasn't happened yet" });
-        return z.NEVER;
-      }
+      // Forward dates are allowed: a future entry is a *plan*, not a claim about the
+      // past, and planning tomorrow's outfit is the other half of what the calendar is
+      // for. Nothing dated ahead of today counts as a wear until the day arrives — see
+      // `hasHappened` — so stats and "last worn" are unaffected by planning.
       return parsed;
     }),
   note: z
