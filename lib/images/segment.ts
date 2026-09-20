@@ -392,6 +392,38 @@ async function readAlpha(cutout: Buffer) {
  *
  * Returns the per-pixel alpha multiplier, and what fraction of the garment it erases.
  */
+/**
+ * A bar seen *through* an opening in the garment.
+ *
+ * The other rule here is "whatever holds a garment up sits outside it", which is true
+ * of the hook and the arms but not of the length of hanger framed by a neckline — that
+ * sits inside the garment's box on every side, so the geometry test kept it and a black
+ * bar survived across the collar of every scoop- and square-necked top.
+ *
+ * What is still true is its *shape*: a hanger bar is wide, thin, level, and high on the
+ * garment. A garment feature the mask missed — a collar band, a cuff, a pinstripe — is
+ * none of those at once. All four have to hold, and the safety valve still has the last
+ * word if the mask turns out to be describing something else entirely.
+ */
+function looksLikeABar(
+  box: { minRow: number; maxRow: number; minCol: number; maxCol: number },
+  garment: { top: number; bottom: number; left: number; right: number },
+  height: number,
+) {
+  const barWidth = box.maxCol - box.minCol + 1;
+  const barHeight = box.maxRow - box.minRow + 1;
+  const garmentWidth = Math.max(1, garment.right - garment.left + 1);
+  const garmentHeight = Math.max(1, garment.bottom - garment.top + 1);
+
+  return (
+    barWidth >= garmentWidth * 0.25 &&
+    barHeight <= Math.max(4, height * 0.035) &&
+    barWidth >= barHeight * 4 &&
+    // Hangers hang from the shoulders. A band low on a skirt is the garment's own.
+    box.maxRow <= garment.top + garmentHeight * 0.35
+  );
+}
+
 function eraseOutside(
   alpha: Uint8Array,
   gate: Uint8Array,
@@ -399,10 +431,22 @@ function eraseOutside(
   height: number,
   garmentTop: number,
   garmentBottom: number,
+  garmentLeft: number,
+  garmentRight: number,
+  holes: Uint8Array,
 ) {
   const keep = new Uint8Array(alpha.length).fill(255);
   const visited = new Uint8Array(alpha.length);
-  const candidate = (i: number) => alpha[i] >= 128 && gate[i] < 128;
+  /**
+   * Opaque, and something the mask did not call clothing.
+   *
+   * `holes` re-admits what hole-filling took away. Filling an enclosed region of the
+   * mask means "don't erase here", which is right for lace the mask missed and wrong
+   * for a hanger bar framed by a neckline — both are enclosed by garment. Re-admitting
+   * them as *candidates* costs nothing, because an island inside the garment is only
+   * ever erased if it is also bar-shaped.
+   */
+  const candidate = (i: number) => alpha[i] >= 128 && (gate[i] < 128 || holes[i] === 1);
 
   let opaque = 0;
   for (let i = 0; i < alpha.length; i += 1) if (alpha[i] >= 128) opaque += 1;
@@ -416,8 +460,13 @@ function eraseOutside(
   // erasing: clearing these bands unconditionally bit a notch out of a cardigan collar
   // whenever the coarse mask put the garment's top edge below the true one.
   for (let i = 0; i < alpha.length; i += 1) {
-    const y = Math.floor(i / width);
-    if (y >= garmentTop && y <= garmentBottom) continue;
+    const x = i % width;
+    const y = (i - x) / width;
+    // Outside the garment's box on *either* axis. Vertical alone left the ghost of a
+    // pale hanger arm lying level with the shoulders of a cropped top.
+    if (y >= garmentTop && y <= garmentBottom && x >= garmentLeft && x <= garmentRight) {
+      continue;
+    }
     if (alpha[i] >= 128) continue;
     keep[i] = 0;
   }
@@ -431,6 +480,8 @@ function eraseOutside(
     visited[start] = 1;
     let minRow = height;
     let maxRow = 0;
+    let minCol = width;
+    let maxCol = 0;
 
     while (stack.length > 0) {
       const index = stack.pop()!;
@@ -440,6 +491,8 @@ function eraseOutside(
       const y = (index - x) / width;
       if (y < minRow) minRow = y;
       if (y > maxRow) maxRow = y;
+      if (x < minCol) minCol = x;
+      if (x > maxCol) maxCol = x;
 
       const neighbours = [
         x > 0 ? index - 1 : -1,
@@ -454,7 +507,33 @@ function eraseOutside(
       }
     }
 
-    if (minRow >= garmentTop && maxRow <= garmentBottom) continue;
+    // Only a region enclosed by the garment can be something seen *through* it. A
+    // contrast neck binding is attached to the garment's outer edge, not framed by it,
+    // so it never qualifies however bar-like its shape.
+    let inHole = 0;
+    for (const index of island) if (holes[index] === 1) inHole += 1;
+    const framed = inHole > island.length * 0.8;
+
+    const inside =
+      minRow >= garmentTop &&
+      maxRow <= garmentBottom &&
+      // Horizontal extent too, not just vertical. A hanger's arms sit level with the
+      // shoulders of a cropped top, so a vertical-only test declared the whole hanger
+      // "inside the garment" and kept it.
+      minCol >= garmentLeft &&
+      maxCol <= garmentRight;
+
+    if (
+      inside &&
+      !(framed &&
+        looksLikeABar(
+        { minRow, maxRow, minCol, maxCol },
+        { top: garmentTop, bottom: garmentBottom, left: garmentLeft, right: garmentRight },
+        height,
+      ))
+    ) {
+      continue;
+    }
 
     for (const index of island) {
       if (keep[index] === 0) continue; // already cleared by the band above
@@ -511,6 +590,27 @@ function clothingRow(
   }
 
   return edge === "top" ? 0 : height - 1;
+}
+
+/** The leftmost or rightmost column the garment reaches, mirroring `clothingRow`. */
+function clothingColumn(
+  bits: Uint8Array,
+  width: number,
+  height: number,
+  edge: "left" | "right",
+) {
+  const minRunPixels = Math.max(8, Math.round(height * 0.02));
+
+  for (let step = 0; step < width; step += 1) {
+    const x = edge === "left" ? step : width - 1 - step;
+    let opaque = 0;
+    for (let y = 0; y < height; y += 1) {
+      if (bits[y * width + x]) opaque += 1;
+    }
+    if (opaque >= minRunPixels) return x;
+  }
+
+  return edge === "left" ? 0 : width - 1;
 }
 
 /** Erase the band above the garment, leaving the garment itself untouched. */
@@ -578,6 +678,10 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
 
   const { bits } = await readMask(mask, width, height);
   const filled = fillInteriorHoles(bits, width, height);
+  // What hole-filling added: the regions the garment encloses. Kept so the island pass
+  // can tell "behind the garment" from "part of it".
+  const holes = new Uint8Array(filled.length);
+  for (let i = 0; i < filled.length; i += 1) holes[i] = filled[i] && !bits[i] ? 1 : 0;
   // Generous. A thin feature the mask missed — a ribbed collar band, a cuff — otherwise
   // reads as non-clothing, joins the hanger's island, and is erased along with it, which
   // bit a notch out of a cardigan collar. Growing the gate bridges those gaps; the cost
@@ -595,6 +699,11 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
     height - 1,
     clothingRow(gateBits, width, height, "bottom") + margin,
   );
+  const garmentLeft = Math.max(0, clothingColumn(gateBits, width, height, "left") - margin);
+  const garmentRight = Math.min(
+    width - 1,
+    clothingColumn(gateBits, width, height, "right") + margin,
+  );
 
   const { keep, erasedFraction } = eraseOutside(
     alpha,
@@ -603,6 +712,9 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
     height,
     garmentTop,
     garmentBottom,
+    garmentLeft,
+    garmentRight,
+    holes,
   );
 
   // Fall back to the approach that cannot damage fabric, and accept the bar.

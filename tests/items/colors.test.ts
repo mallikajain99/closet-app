@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { colorFamily } from "@/lib/items/colors";
+import { colorFamily, meansColorful } from "@/lib/items/colors";
 
 const family = (color: string) => colorFamily(color)?.key ?? null;
 
@@ -27,7 +27,10 @@ describe("colorFamily", () => {
     expect(family("charcoal")).toBe("grey");
     expect(family("cornflower blue")).toBe("blue");
     expect(family("tan/beige")).toBe("beige");
-    expect(family("multicolour")).toBe("multicolour");
+    // "Multicolour" was a family until it wasn't: a family needs a swatch and no
+    // swatch is honest about a print, so the beige it had read as another neutral.
+    // Being colourful is a property of the garment, and is a tag now.
+    expect(family("multicolour")).toBeNull();
   });
 
   it("ignores capitalisation, which the stored data is inconsistent about", () => {
@@ -44,5 +47,19 @@ describe("colorFamily", () => {
   it("gives every family a distinct key and a swatch", () => {
     expect(family("white")).toBe("white");
     expect(colorFamily("white")?.swatch).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+});
+
+describe("meansColorful", () => {
+  it("recognises the words that describe many colours rather than name one", () => {
+    for (const value of ["multicolour", "Multicolor", "floral print", "rainbow", "colourful"]) {
+      expect(meansColorful(value)).toBe(true);
+    }
+  });
+
+  it("leaves an actual colour alone", () => {
+    for (const value of ["red", "cornflower blue", "oatmeal", "sage green"]) {
+      expect(meansColorful(value)).toBe(false);
+    }
   });
 });

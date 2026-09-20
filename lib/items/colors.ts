@@ -27,12 +27,6 @@ export type ColorFamily = {
  */
 export const COLOR_FAMILIES: readonly ColorFamily[] = [
   {
-    key: "multicolour",
-    label: "Multicolour",
-    swatch: "#b9a58c",
-    keywords: ["multicolour", "multicolor", "multi", "print", "pattern", "floral", "rainbow"],
-  },
-  {
     key: "red",
     label: "Red",
     swatch: "#9f3441",
@@ -132,6 +126,26 @@ export const colorFamilyByKey = (key: string) => BY_KEY.get(key);
  * Case-insensitive, which also absorbs the inconsistent capitalisation in the existing
  * data ("Cream" and "cream" are one colour).
  */
+/**
+ * Words that describe a garment as *many* colours rather than naming one.
+ *
+ * Deliberately not a colour family. "Multicolour" was one, and it never worked: a
+ * family needs a swatch, and no single swatch is honest about a print — the beige it
+ * ended up with made the chip read as another neutral. Being colourful is a property of
+ * the garment, like being for work or for the gym, so it is a tag (`COLORFUL_TAG`) and
+ * the colour field keeps only colours it can actually name.
+ */
+const MANY_COLOURS = ["multicolour", "multicolor", "multi", "print", "floral", "rainbow", "colourful", "colorful"];
+
+/** The tag applied instead; `scripts/normalize-colors.ts` migrates existing items. */
+export const COLORFUL_TAG = "colorful";
+
+/** Whether a written colour is really saying "lots of colours". */
+export function meansColorful(color: string): boolean {
+  const value = color.trim().toLowerCase();
+  return MANY_COLOURS.some((word) => value.includes(word));
+}
+
 export function colorFamily(color: string): ColorFamily | null {
   const value = color.trim().toLowerCase();
   if (!value) return null;

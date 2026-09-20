@@ -85,17 +85,24 @@ which is the single implementation shared by the Server Actions and the backfill
    - interior holes in the mask are filled (flood the background inward from the border;
      anything enclosed is a hole), because filling only ever means "don't erase here";
    - non-clothing regions are erased as whole connected **islands**, and only if an island
-     reaches beyond the garment's vertical extent. A hook and its bar are one island, so the
-     bar goes even though it overlaps the shoulders; toggles and cuffs lie wholly inside the
-     two lines and are unreachable by construction;
+     reaches beyond the garment's bounding box — **both axes**. A hook and its bar are one
+     island, so the bar goes even though it overlaps the shoulders; toggles and cuffs lie
+     wholly inside the box and are unreachable by construction. The vertical-only version
+     of this test kept whole hangers on cropped tops, whose shoulders sit level with the
+     hanger's arms;
    - semi-transparent pixels outside those lines are cleared too, since a white hanger on a
      pale backdrop returns at partial alpha and is invisible to the island pass;
    - a **safety valve** discards the mask entirely if it wants to erase more than 25% of the
      garment, falling back to a plain crop above the garment. That is what keeps a pale
      pinstripe top intact rather than reduced to fragments.
 
-   A hanger bar seen *through* a collar opening still survives — it is genuinely behind the
-   fabric's own opening, and no masking approach removes it.
+   A hanger bar seen *through* a collar opening is the one case still unsolved. It sits
+   inside the garment's box on every side, so geometry alone keeps it. There is a rule for
+   it — an island that is wide, thin, level, high on the garment *and* enclosed by garment
+   on all sides is a bar, not a feature — but it only fires when the coarse mask actually
+   excludes the neck opening, and on the item tested it did not: the mask traces the
+   garment's outer silhouette and calls the opening clothing, so there is no enclosed
+   region to judge. Unconfirmed whether that holds generally.
 
    The person-parsing pass this step originally specified isn't needed: the photos are
    garments on hangers, not on a body.
@@ -385,6 +392,8 @@ geometry, and a figure can be dropped in behind it later without touching the la
 
 | Date | Change |
 |---|---|
+| 2026-09-20 | **Hanger removal: erase on both axes, not just the vertical one.** Hangers were surviving on a lot of items. The island test asked only whether a region reached above or below the garment — so on a cropped top, whose shoulders sit level with the hanger's arms, the whole hanger counted as "inside the garment" and was kept. Both arms and the semi-transparent ghost of the pale one now go, because both the island test and the semi-transparent sweep consider the horizontal extent too. Verified by re-running the three historically fragile items — a pinstripe blazer, a lace top, a cardigan — all intact, lapels, lace holes, buttons and collar. **Still unsolved:** a bar seen *through* a neckline. There is a rule for it (wide, thin, level, high, and enclosed by garment on all sides) but it only fires when the coarse mask excludes the neck opening, and on the item tested the mask traced the outer silhouette instead, leaving no enclosed region to judge. |
+| 2026-09-20 | **"Multicolour" stops being a colour and becomes a tag.** A colour family needs a swatch and no swatch is honest about a print — the beige it had made the chip read as one more neutral. Being colourful is a property of the garment, like being for work, so it joins the tag vocabulary and the colour field keeps only colours it can name. `scripts/normalize-colors.ts` migrated the four affected items; one is left with no recorded colour, which is correct rather than lossy, since "multicolour" never named one. Spec §1 unchanged — it already described filtering on families. |
 | 2026-09-20 | **Every item is priced, at intake rather than by a later sweep.** Cost-per-wear is undefined without a price, and 55 of 178 items had none — a third of the closet contributing nothing to the number the app exists to report. Asking at intake would be accurate and would also stop the closet being catalogued, so items are estimated on save instead, flagged `priceEstimated` and overwritten the moment a real figure is typed. The model moved out of `scripts/estimate-prices.ts` into `lib/items/estimate-price.ts` so the form, the bulk importer and the backfill script cannot price the same garment three different ways. Eighteen garment types added while doing it — without a base of their own, a floor-length gown and a jersey mini both took the DRESS fallback and came out the same price, which is the single number a category fallback can offer. Backfilled: 0 items now lack a price or a render. Spec §1 updated. |
 | 2026-09-20 | **An empty calendar day is a way in.** Tapping one opens `/calendar/[date]`, a picker with the date fixed and only the outfit left to choose — the reverse of logging from an outfit's page, and the right way round for the moment the user is already looking at a particular day. Past and future both work, which is what makes it the natural home for planning. |
 | 2026-09-20 | **Outfits can be planned, not only logged.** Forward-dated wears were rejected outright — "forward-dating is always a mistake" — which is wrong: deciding on Sunday what to wear on Friday is the other half of what a calendar is for. Plans and wears share the `WearLog` table rather than getting their own, because they are the same row seen from either side of the date: Friday's plan *becomes* Friday's wear with nothing to migrate and no second record to disagree. The price is one invariant that has to hold everywhere — **a plan is counted nowhere** — so every wear count, `lastWorn`, and cost-per-wear now filters on `happened()` from the new `lib/wears/planned.ts`, and the comparison is against UTC midnight rather than `now`, or tomorrow's plan would flip to "happened" partway through today. Planned days are outlined rather than filled on the calendar and labelled in wear lists, so a month of intentions never reads as a month of wears. Spec §3 updated. |
