@@ -41,7 +41,9 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
   JEWELRY: { slot: "JEWELRY", label: "Jewelry", height: 0.06, centre: 0.2, z: 70 },
   ACCESSORY: { slot: "OTHER", label: "Accessory", height: 0.1, centre: 0.25, z: 65 },
   // Shoulders to hip.
-  TOP: { slot: "TOP", label: "Top", height: 0.35, centre: 0.345, z: 30 },
+  // 0.31 not 0.35: a top was reading large against trousers. The liked reference
+  // outfit uses its shirt as OUTERWEAR, so this does not disturb it.
+  TOP: { slot: "TOP", label: "Top", height: 0.31, centre: 0.325, z: 30 },
   // Shoulders to just below the hip. One number can't tell a cropped cardigan from a
   // longline coat — that is what `Item.layoutScale`/`layoutOffset` are reserved for.
   OUTERWEAR: { slot: "OUTER", label: "Outerwear", height: 0.42, centre: 0.38, z: 40 },
@@ -88,7 +90,8 @@ const LENGTH_OVERRIDES: Array<{
 }> = [
   // Waist 0.45, mid-thigh 0.62, knee 0.73, calf 0.85, ankle 0.95.
   { match: /\bshorts\b/i, categories: ["BOTTOM"], height: 0.17, centre: 0.535 },
-  { match: /\bmini\b/i, categories: ["BOTTOM"], height: 0.2, centre: 0.55 },
+  // A mini is short, but 0.2 read as tiny beside a top — mid-thigh rather than upper.
+  { match: /\bmini\b/i, categories: ["BOTTOM"], height: 0.27, centre: 0.585 },
   { match: /\bmidi\b/i, categories: ["BOTTOM"], height: 0.38, centre: 0.64 },
   { match: /\bmaxi\b/i, categories: ["BOTTOM"], height: 0.5, centre: 0.7 },
   // A skirt with no stated length: knee, the safe middle.
