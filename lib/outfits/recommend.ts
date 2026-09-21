@@ -181,7 +181,8 @@ export function recommend({
   season,
   query = "",
   now = new Date(),
-  perContext = 3,
+  // Four across, so a row is a choice rather than a verdict.
+  perContext = 4,
 }: {
   outfits: readonly RecommendableOutfit[];
   season: Season;
