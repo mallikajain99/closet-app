@@ -245,33 +245,36 @@ function drawnWidth(subject: LayoutSubject, height: number): number | null {
 function matchShoulders<T extends LayoutSubject>(
   spans: Array<{ item: T; top: number; height: number }>,
 ): void {
-  // Tops only, never dresses. Matching widths works by scaling, and scaling a dress to
-  // a shirt's shoulder width would drag its hem with it — a dress's length is stated by
-  // its own length rule, which is not a number to overrule for the sake of a shoulder.
-  const inner = spans.find((s) => s.item.category === "TOP");
-  const outer = spans.find((s) => s.item.category === "OUTERWEAR");
-  if (!inner || !outer) return;
+  // Every shoulder-hung garment except a dress, not just the first of each kind: two
+  // sweaters layered together mismatch exactly the way a sweater and a cardigan do.
+  // Dresses are excluded because matching works by scaling, and scaling a dress to a
+  // shirt's shoulder would drag its hem with it — a dress's length is stated by its own
+  // length rule, which is not a number to overrule for the sake of a shoulder.
+  const layers = spans.filter(
+    (span) => span.item.category === "TOP" || span.item.category === "OUTERWEAR",
+  );
+  if (layers.length < 2) return;
 
-  const innerWidth = drawnWidth(inner.item, inner.height);
-  const outerWidth = drawnWidth(outer.item, outer.height);
-  if (!innerWidth || !outerWidth) return;
+  const measured = layers.map((span) => drawnWidth(span.item, span.height));
+  if (measured.some((width) => !width)) return;
+  const widths = measured as number[];
 
-  // The *geometric* mean, so neither garment is treated as the authority — one is not
-  // more correctly photographed than the other, they are just different shapes. It has
-  // to be geometric: an arithmetic mean of two widths sits nearer the larger one, so
-  // correcting a 3× mismatch would shrink the wide garment by a third while asking the
-  // narrow one to nearly double. This splits the ratio evenly, each moving by √r.
-  const target = Math.sqrt(innerWidth * outerWidth);
-  for (const [span, width] of [
-    [inner, innerWidth],
-    [outer, outerWidth],
-  ] as const) {
+  // The *geometric* mean, so no garment is treated as the authority — none is more
+  // correctly photographed than the others, they are just different shapes. It has to
+  // be geometric: an arithmetic mean sits nearer the larger widths, so correcting a 3×
+  // mismatch would shrink the wide garment by a third while asking the narrow one to
+  // nearly double. This splits the ratio evenly, each moving by the same factor.
+  const target = Math.exp(
+    widths.reduce((sum, width) => sum + Math.log(width), 0) / widths.length,
+  );
+
+  layers.forEach((span, index) => {
     const scale = Math.min(
       SHOULDER_MATCH_LIMIT.max,
-      Math.max(SHOULDER_MATCH_LIMIT.min, target / width),
+      Math.max(SHOULDER_MATCH_LIMIT.min, target / widths[index]),
     );
     span.height *= scale;
-  }
+  });
 }
 
 /**
@@ -325,13 +328,17 @@ export function composeOutfit<T extends LayoutSubject>(
   // lone top belongs on the centre line. Laid out back to front, left to right, so the
   // piece in front sits rightmost the way a flat lay is arranged. Three layers (a
   // cardigan, a dress and a top over it) put the middle one on the centre line.
-  const layers = LAYERED_CATEGORIES.map((category) =>
-    spans.find((s) => s.item.category === category),
-  ).filter((span) => span !== undefined);
+  // Every shoulder-hung garment, in paint order back to front, not one per category:
+  // layering two sweaters is as ordinary as layering a sweater under a cardigan.
+  const layered = spans
+    .filter((span) => LAYERED_CATEGORIES.includes(span.item.category))
+    .sort(
+      (a, b) => CATEGORY_SLOT[a.item.category].z - CATEGORY_SLOT[b.item.category].z,
+    );
 
-  if (layers.length > 1) {
-    const step = (LAYER_SPREAD * 2) / (layers.length - 1);
-    layers.forEach((span, index) => {
+  if (layered.length > 1) {
+    const step = (LAYER_SPREAD * 2) / (layered.length - 1);
+    layered.forEach((span, index) => {
       span.offsetX = -LAYER_SPREAD + index * step;
     });
   }

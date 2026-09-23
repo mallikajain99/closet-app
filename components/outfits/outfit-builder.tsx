@@ -63,18 +63,27 @@ export function OutfitBuilder({
 }) {
   const [result, formAction, pending] = useActionState(action, null);
 
-  const [chosen, setChosen] = useState<Partial<Record<Slot, PickableItem>>>(() => {
-    // Editing starts from what the outfit already contains.
-    const start: Partial<Record<Slot, PickableItem>> = {};
+  /**
+   * A slot holds a list, not a single piece.
+   *
+   * Layering is the normal case, not an exception: a tee under a sweater, a cardigan
+   * under a coat, two necklaces. One-item slots forced a choice the wardrobe doesn't —
+   * and the data model never needed it, since `OutfitItem` has always carried a slot
+   * and an order rather than a slot being unique.
+   */
+  const [chosen, setChosen] = useState<Partial<Record<Slot, PickableItem[]>>>(() => {
+    // Editing starts from what the outfit already contains, preserving its order.
+    const start: Partial<Record<Slot, PickableItem[]>> = {};
     for (const [slot, options] of Object.entries(itemsBySlot)) {
-      const match = options.find((item) => initialItemIds.includes(item.id));
-      if (match) start[slot as Slot] = match;
+      const matches = options.filter((item) => initialItemIds.includes(item.id));
+      if (matches.length > 0) start[slot as Slot] = matches;
     }
     return start;
   });
 
+  // Flattened in slot order, head to toe, which is the order they are saved in.
   const selected = useMemo(
-    () => Object.values(chosen).filter(Boolean) as PickableItem[],
+    () => BUILDER_SLOTS.flatMap(({ slot }) => chosen[slot] ?? []),
     [chosen],
   );
 
@@ -93,12 +102,19 @@ export function OutfitBuilder({
   const value = edited ? name : (suggestions[0] ?? "");
 
   const toggle = (slot: Slot, item: PickableItem) =>
-    setChosen((current) => ({
-      ...current,
-      // Tapping the chosen item again clears the slot, so a piece can be removed with
-      // the same control that added it.
-      [slot]: current[slot]?.id === item.id ? undefined : item,
-    }));
+    setChosen((current) => {
+      const picked = current[slot] ?? [];
+      const already = picked.some((chosenItem) => chosenItem.id === item.id);
+      return {
+        ...current,
+        // Tapping a chosen piece again removes it, so the same control adds and
+        // removes. Newly picked pieces go on the end, and that order is the layering
+        // order: last picked is worn outermost.
+        [slot]: already
+          ? picked.filter((chosenItem) => chosenItem.id !== item.id)
+          : [...picked, item],
+      };
+    });
 
   return (
     <form action={formAction} className="grid gap-10 lg:grid-cols-[360px_1fr]">
@@ -133,8 +149,10 @@ export function OutfitBuilder({
             <section key={slot}>
               <div className="flex items-baseline justify-between border-b border-line pb-2">
                 <p className="label text-ink">{label}</p>
-                <p className="text-meta text-ink-subtle">
-                  {chosen[slot]?.name ?? `${options.length} to choose from`}
+                <p className="truncate pl-4 text-meta text-ink-subtle">
+                  {chosen[slot]?.length
+                    ? chosen[slot].map((item) => item.name).join(" + ")
+                    : `${options.length} to choose from`}
                 </p>
               </div>
 
@@ -145,7 +163,9 @@ export function OutfitBuilder({
                   <p className="text-meta text-ink-subtle">{kind}</p>
                   <ul className="-mx-6 mt-1 flex gap-3 overflow-x-auto px-6 pb-2">
                     {group.map((item) => {
-                      const active = chosen[slot]?.id === item.id;
+                      const picked = chosen[slot] ?? [];
+                      const position = picked.findIndex((chosenItem) => chosenItem.id === item.id);
+                      const active = position >= 0;
                       return (
                         <li key={item.id} className="shrink-0">
                           <button
@@ -168,6 +188,13 @@ export function OutfitBuilder({
                                 sizes="96px"
                                 className="object-contain"
                               />
+                            )}
+                            {/* Which layer it is, shown only once a slot holds more
+                                than one — otherwise it is noise on every tile. */}
+                            {active && picked.length > 1 && (
+                              <span className="label absolute right-0 top-0 bg-ink px-1.5 py-0.5 text-canvas">
+                                {position + 1}
+                              </span>
                             )}
                           </button>
                         </li>

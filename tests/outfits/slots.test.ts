@@ -344,3 +344,44 @@ describe("a top worn over a dress", () => {
     expect(placedDress.height).toBeCloseTo(layoutFor(dress).height, 5);
   });
 });
+
+describe("layering more than one of a kind", () => {
+  const measured = (over: Partial<{ subcategory: string; renderWidth: number; renderHeight: number }>) => ({
+    category: "TOP" as const,
+    subcategory: "sweater",
+    renderWidth: 600,
+    renderHeight: 700,
+    ...over,
+  });
+
+  it("spreads three tops across the frame rather than stacking two of them", () => {
+    // "I layer sweaters" — two tops in one outfit is ordinary, and spreading one per
+    // category left the second and third sitting on top of each other.
+    const { placed } = composeOutfit([
+      measured({ subcategory: "t-shirt" }),
+      measured({ subcategory: "sweater" }),
+      measured({ subcategory: "vest" }),
+    ]);
+    const offsets = placed.map((p) => p.offsetX).sort((a, b) => a - b);
+    expect(new Set(offsets).size).toBe(3);
+    expect(offsets[0]).toBeLessThan(0);
+    expect(offsets[2]).toBeGreaterThan(0);
+  });
+
+  it("matches the shoulders of every layer, not just the first two", () => {
+    const wide = measured({ renderWidth: 900, renderHeight: 700 });
+    const narrow = measured({ renderWidth: 300, renderHeight: 800 });
+    const middling = measured({ renderWidth: 600, renderHeight: 750 });
+
+    const { placed } = composeOutfit([wide, narrow, middling]);
+    const widths = placed.map(
+      (p) => p.height * (p.item.renderWidth / p.item.renderHeight),
+    );
+    expect(Math.max(...widths) / Math.min(...widths)).toBeLessThan(1.2);
+  });
+
+  it("keeps a single top on the centre line", () => {
+    const { placed } = composeOutfit([measured({})]);
+    expect(placed[0].offsetX).toBe(0);
+  });
+});

@@ -132,6 +132,11 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
   - **A dress does not occupy the top's slot.** A top or sweater is routinely worn over
     a dress, so the two are separate slots and can both be chosen; the top layers over
     the dress the way it is worn
+  - **Every slot takes as many pieces as you like.** Layering is the normal case, not
+    an exception — a tee under a sweater, a cardigan under a coat, two necklaces — so a
+    slot holds a list rather than a single garment. The order pieces are picked in is
+    the layering order: last picked is worn outermost, and the position is numbered on
+    the tile once a slot holds more than one
   - **Within a slot, items are grouped by kind** — all the jeans together, then the
     trousers, then the skirts — each group under its own label. One undifferentiated row
     of 38 tops is a scrolling problem, not a choosing one; the user knows what *kind* of
