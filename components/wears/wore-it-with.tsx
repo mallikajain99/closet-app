@@ -1,0 +1,166 @@
+"use client";
+
+import Image from "next/image";
+import { useState } from "react";
+
+export type SwappablePiece = { id: string; name: string; imageUrl: string | null };
+
+/**
+ * Record what was actually worn, when it differed from the saved outfit.
+ *
+ * The alternative was making the user save a near-duplicate outfit every time she
+ * threw a coat on or changed her shoes — which multiplies the outfit list, splits the
+ * wear history of what is obviously one look, and fills suggestions with variations of
+ * the same thing. The outfit is the idea; the wear is the fact, and `WearLog` has
+ * always carried its own item list, so recording the difference costs no new tables.
+ *
+ * It matters beyond tidiness: these rows are what item stats read. A coat added here
+ * gets a real wear and its own last-worn date, rather than being invisible to the
+ * closet because it never belonged to a saved outfit.
+ */
+export function WoreItWith({
+  pieces,
+  extras,
+}: {
+  /** The outfit's own pieces, each of which can be dropped for this day. */
+  pieces: SwappablePiece[];
+  /** Everything else in the closet, to add for this day. */
+  extras: SwappablePiece[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [dropped, setDropped] = useState<string[]>([]);
+  const [added, setAdded] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+
+  const changes = dropped.length + added.length;
+
+  const matches = search.trim()
+    ? extras
+        .filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()))
+        .slice(0, 8)
+    : [];
+
+  return (
+    <div className="mt-3">
+      {/* The values the action reads. Kept outside the collapsed panel so a change
+          made and then hidden is still submitted. */}
+      {dropped.map((id) => (
+        <input key={id} type="hidden" name="didNotWear" value={id} />
+      ))}
+      {added.map((id) => (
+        <input key={id} type="hidden" name="alsoWore" value={id} />
+      ))}
+
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="label text-ink-subtle underline underline-offset-4 transition-colors hover:text-ink"
+      >
+        {changes > 0
+          ? `Wore it with changes (${changes})`
+          : "Wore it with something different?"}
+      </button>
+
+      {open && (
+        <div className="mt-3 border-l-2 border-line pl-4">
+          <p className="text-meta leading-relaxed text-ink-muted">
+            Changes apply to this day only. The outfit itself stays as it is.
+          </p>
+
+          {pieces.length > 0 && (
+            <>
+              <p className="label mt-3 text-ink-subtle">Leave out</p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {pieces.map((piece) => {
+                  const off = dropped.includes(piece.id);
+                  return (
+                    <li key={piece.id}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDropped(
+                            off
+                              ? dropped.filter((id) => id !== piece.id)
+                              : [...dropped, piece.id],
+                          )
+                        }
+                        className={`label border px-3 py-1.5 transition-colors ${
+                          off
+                            ? "border-line text-ink-subtle line-through"
+                            : "border-line-strong text-ink-muted hover:border-ink hover:text-ink"
+                        }`}
+                      >
+                        {piece.name}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+
+          <p className="label mt-4 text-ink-subtle">Also wore</p>
+
+          {added.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {added.map((id) => {
+                const item = extras.find((candidate) => candidate.id === id);
+                return (
+                  <li key={id}>
+                    <button
+                      type="button"
+                      onClick={() => setAdded(added.filter((other) => other !== id))}
+                      className="label border border-ink px-3 py-1.5 text-ink"
+                    >
+                      {item?.name ?? "Item"} <span aria-hidden="true">×</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search your closet — a coat, other shoes…"
+            aria-label="Find something else you wore"
+            className="mt-2 w-full border border-line-strong bg-surface px-3 py-2 text-meta text-ink focus:border-ink focus:outline-none"
+          />
+
+          {matches.length > 0 && (
+            <ul className="mt-2 grid gap-1">
+              {matches.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!added.includes(item.id)) setAdded([...added, item.id]);
+                      setSearch("");
+                    }}
+                    className="flex w-full items-center gap-3 border-b border-line py-2 text-left text-meta text-ink-muted transition-colors hover:text-ink"
+                  >
+                    <span className="relative size-8 shrink-0 bg-surface-sunken">
+                      {item.imageUrl && (
+                        <Image
+                          src={item.imageUrl}
+                          alt=""
+                          fill
+                          unoptimized
+                          sizes="32px"
+                          className="object-contain"
+                        />
+                      )}
+                    </span>
+                    {item.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

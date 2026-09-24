@@ -30,11 +30,14 @@ export function LogWear({
   recent,
   action,
   remove,
+  children,
 }: {
   today: string;
   recent: RecentWear[];
   action: (prev: WearResult | null, formData: FormData) => Promise<WearResult>;
   remove: (wearLogId: string) => Promise<WearResult>;
+  /** Extra fields inside the form — the outfit page passes "wore it with". */
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const [result, formAction, pending] = useActionState(action, null);
@@ -82,6 +85,8 @@ export function LogWear({
                 : "Add this wear"}
         </button>
       </form>
+
+      {children}
 
       {result?.ok === false && (
         <p role="alert" className="mt-2 text-meta text-signal-danger">

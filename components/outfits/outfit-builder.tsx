@@ -97,8 +97,28 @@ export function OutfitBuilder({
    * name that merely happens to match a suggestion shouldn't be treated as untouched.
    * Clearing the field hands control back.
    */
+  /**
+   * Whether the name it arrived with was one the app wrote.
+   *
+   * Editing an outfit pre-fills the field with its current title, and treating that as
+   * the user's own wording meant swapping a piece left the old name behind — "Blue
+   * shirt + jeans" on an outfit that no longer has a blue shirt. Comparing against the
+   * suggestions for the pieces it *started* with distinguishes the two: a name the app
+   * generated will be among them, a name she typed almost certainly won't.
+   *
+   * Computed once, from the initial selection, because the point is what was true on
+   * arrival — recomputing as pieces change would make the answer drift.
+   */
+  const [edited, setEdited] = useState(() => {
+    if (initialName.length === 0) return false;
+    const started = BUILDER_SLOTS.flatMap(({ slot }) =>
+      (itemsBySlot[slot] ?? []).filter((item) => initialItemIds.includes(item.id)),
+    );
+    return !suggestOutfitNames(started).some(
+      (suggestion) => suggestion.toLowerCase() === initialName.toLowerCase(),
+    );
+  });
   const [name, setName] = useState(initialName);
-  const [edited, setEdited] = useState(initialName.length > 0);
   const value = edited ? name : (suggestions[0] ?? "");
 
   const toggle = (slot: Slot, item: PickableItem) =>

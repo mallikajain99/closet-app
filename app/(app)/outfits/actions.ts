@@ -294,7 +294,33 @@ export async function logOutfitWear(
   if (!outfit) return { ok: false, message: "That outfit no longer exists." };
 
   const { wornOn, note } = parsed.data;
-  const itemIds = outfit.currentVersion?.items.map((link) => link.itemId) ?? [];
+
+  /**
+   * What was actually worn, which is not always what the outfit says.
+   *
+   * Throwing a coat over a saved outfit, or swapping the shoes, shouldn't mean
+   * inventing a near-duplicate outfit — the outfit is the idea and the wear is the
+   * fact. Extras are added to this day only; swaps replace a piece for this day only.
+   * The outfit's own definition is untouched, so it stays one entry in suggestions.
+   *
+   * These rows are what item stats read, so a coat added here genuinely gets a wear
+   * and a last-worn date of its own, exactly as if it had been logged on its own.
+   */
+  const addedIds = formData
+    .getAll("alsoWore")
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+  const removedIds = new Set(
+    formData
+      .getAll("didNotWear")
+      .filter((value): value is string => typeof value === "string"),
+  );
+
+  const itemIds = [
+    ...(outfit.currentVersion?.items ?? [])
+      .map((link) => link.itemId)
+      .filter((id) => !removedIds.has(id)),
+    ...addedIds,
+  ];
 
   const existing = await db.wearLog.findFirst({
     where: { userId: user.id, wornOn, outfitId: outfit.id },
@@ -325,6 +351,15 @@ export async function logOutfitWear(
     });
   }
 
+  // A piece swapped out of *this day* is removed from the log even if a previous
+  // log of the same day recorded it, so correcting a mistake actually corrects it.
+  if (removedIds.size > 0) {
+    await db.wearLogItem.deleteMany({
+      where: { wearLogId, itemId: { in: [...removedIds] } },
+    });
+  }
+
+  revalidatePath("/catalog");
   revalidatePath("/outfits");
   revalidatePath(`/outfits/${outfitId}`);
   revalidatePath("/calendar");

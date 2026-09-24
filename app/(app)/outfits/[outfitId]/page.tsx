@@ -12,6 +12,7 @@ import { OutfitFigure } from "@/components/outfits/outfit-figure";
 import { OutfitPhotos } from "@/components/outfits/outfit-photos";
 import { SetAsideControl } from "@/components/outfits/set-aside-control";
 import { LogWear } from "@/components/wears/log-wear";
+import { WoreItWith } from "@/components/wears/wore-it-with";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getItemImageUrls, getSignedImageUrls } from "@/lib/images/storage";
@@ -76,6 +77,17 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
   const items = (outfit.currentVersion?.items ?? []).map((link) => link.item);
   const urls = await getItemImageUrls(items, "thumbnail");
   const allTags = await tagVocabulary(user.id);
+  // Everything not already in the outfit, for "also wore". Names only — the picker
+  // is a search box, so signing 190 thumbnails to show eight would be waste.
+  const closet = await db.item.findMany({
+    where: {
+      userId: user.id,
+      status: "ACTIVE",
+      id: { notIn: items.map((item) => item.id) },
+    },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
   // Outfit photos live in the originals bucket: they are photographs of a person, not
   // garment cutouts, so nothing processes them.
   const photoUrls = await getSignedImageUrls(outfit.photos.map((photo) => photo.imageKey));
@@ -167,7 +179,20 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
             }))}
             action={logOutfitWear.bind(null, outfit.id)}
             remove={removeOutfitWear.bind(null, outfit.id)}
-          />
+          >
+            <WoreItWith
+              pieces={items.map((item) => ({
+                id: item.id,
+                name: item.name,
+                imageUrl: urls.get(item.id) ?? null,
+              }))}
+              extras={closet.map((item) => ({
+                id: item.id,
+                name: item.name,
+                imageUrl: null,
+              }))}
+            />
+          </LogWear>
 
           <SetAsideControl
             outfitId={outfit.id}

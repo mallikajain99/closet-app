@@ -385,3 +385,48 @@ describe("layering more than one of a kind", () => {
     expect(placed[0].offsetX).toBe(0);
   });
 });
+
+describe("width-targeted categories", () => {
+  const belt = {
+    category: "ACCESSORY" as const,
+    subcategory: "belt",
+    // Photographed lying flat, roughly 3:1.
+    renderWidth: 628,
+    renderHeight: 205,
+  };
+
+  it("sizes a belt by the width it should draw, not by a guessed height", () => {
+    // Sizing by height is the wrong axis for a wide flat object: a belt read as a
+    // bracelet at one height and overshot the trousers at the next.
+    const { placed } = composeOutfit([belt]);
+    const drawn = placed[0].height * (belt.renderWidth / belt.renderHeight);
+    expect(drawn).toBeCloseTo(CATEGORY_SLOT.ACCESSORY.widthTarget!, 5);
+  });
+
+  it("comes out narrower than the trousers it sits on", () => {
+    const trousers = {
+      category: "BOTTOM" as const,
+      subcategory: "trousers",
+      renderWidth: 700,
+      renderHeight: 1000,
+    };
+    const { placed } = composeOutfit([belt, trousers]);
+    const widthOf = (category: string) => {
+      const p = placed.find((entry) => entry.item.category === category)!;
+      return p.height * (p.item.renderWidth / p.item.renderHeight);
+    };
+    expect(widthOf("ACCESSORY")).toBeLessThan(widthOf("BOTTOM"));
+  });
+
+  it("falls back to the category height when the render was never measured", () => {
+    const { placed } = composeOutfit([{ category: "ACCESSORY" as const, subcategory: "belt" }]);
+    expect(placed[0].height).toBeCloseTo(CATEGORY_SLOT.ACCESSORY.height, 5);
+  });
+
+  it("leaves categories without a width target alone", () => {
+    const { placed } = composeOutfit([
+      { category: "BOTTOM" as const, subcategory: "jeans", renderWidth: 700, renderHeight: 1000 },
+    ]);
+    expect(placed[0].height).toBeCloseTo(CATEGORY_SLOT.BOTTOM.height, 5);
+  });
+});

@@ -39,6 +39,18 @@ export type SlotLayout = {
    * and stacking one down the middle reads as a garment rather than an accessory.
    */
   align?: "centre" | "side";
+  /**
+   * Size this category by how wide it should draw, not how tall.
+   *
+   * Every other garment is sized by height because that is what a body sets: a top
+   * ends where it ends. A belt is the opposite — it is photographed lying flat at
+   * roughly 3:1, so its height is an artefact of the photograph and its *width* is the
+   * thing with a right answer, namely a waist. Picking a height and hoping produced a
+   * belt that read as a bracelet at 0.06 and overshot the trousers at 0.10.
+   *
+   * Needs the measured render to apply; without one the height above is used.
+   */
+  widthTarget?: number;
   z: number;
 };
 
@@ -68,7 +80,28 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
   // top and the waistband — hence the paint order above them but below shoes and bags.
   // A scarf would want the neck; when one arrives it needs an anchor override rather
   // than a second guess at one number for both.
-  ACCESSORY: { slot: "OTHER", label: "Accessory", height: 0.06, anchor: WAIST, edge: "top", z: 45 },
+  // 0.10 is chosen for the *width* it produces, not the height: a belt is photographed
+  // lying flat at roughly 3:1, so this draws it about 0.30 of the figure wide — a waist,
+  // give or take, against trousers that draw at 0.35. At the anatomical 0.06 it came out
+  // 0.18 wide and read as a bracelet lying on the jeans. Sizing by height is wrong for
+  // anything this wide and flat; if a second shape of accessory arrives, this table
+  // needs a width target rather than another compromise.
+  ACCESSORY: {
+    slot: "OTHER",
+    label: "Accessory",
+    height: 0.06,
+    // Back to the size it started at, which was right. Widening it was me fixing the
+    // wrong thing: the belt didn't look small, it looked wrong *on top of an untucked
+    // shirt*, which is a paint-order problem.
+    widthTarget: 0.18,
+    anchor: WAIST,
+    edge: "top",
+    // Behind the upper layers, over the waistband. A belt worn under an untucked shirt
+    // is not visible, and drawing it across the shirt's body was the thing that looked
+    // off. Where a top is cropped or tucked — or spread aside, as layered tops are —
+    // the belt shows at the waist, which is where it should be.
+    z: 22,
+  },
 
   // Everything worn on the upper body hangs from the shoulders, so they all share one
   // anchor and only their hems differ.
@@ -325,6 +358,15 @@ export function composeOutfit<T extends LayoutSubject>(
   const spans = items
     .map((item) => ({ item, ...layoutFor(item), offsetX: 0 }))
     .sort((a, b) => a.top - b.top);
+
+  // Width-targeted categories get their height back-computed from the render's aspect.
+  // Done before anything measures these heights, like the shoulder matching below.
+  for (const span of spans) {
+    const target = CATEGORY_SLOT[span.item.category].widthTarget;
+    const { renderWidth, renderHeight } = span.item;
+    if (!target || !renderWidth || !renderHeight) continue;
+    span.height = target * (renderHeight / renderWidth);
+  }
 
   // Before anything measures these heights: gap-closing, the frame, and the box-fit
   // clamp all read them, so resizing afterwards would crop the garment it just grew.

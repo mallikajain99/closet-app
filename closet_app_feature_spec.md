@@ -150,6 +150,12 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
     at any time and the app never overwrites their wording afterwards. Naming is the only
     part of saving an outfit the app can't infer well enough to demand, and demanding it
     turns a two-tap action into a writing task
+  - **Editing the pieces regenerates an auto-written name.** Swapping a garment used
+    to leave the old title behind — "Blue shirt + jeans" on an outfit with no blue
+    shirt — because the edit form pre-fills the current name and that was taken as the
+    user's own wording. A name the app generated is recognised by matching the
+    suggestions for the pieces the outfit *started* with; a name typed by hand is left
+    exactly as written, however the outfit changes
   - **Names stay in sync with the garments.** Renaming or recolouring an item updates the
     auto-named outfits that mention it; an outfit the user named themselves is left alone.
     Two outfits can't end up with the same name — a collision takes a more specific
@@ -208,6 +214,14 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
     also cover you: bare arms clear summer and spring, covered arms clear autumn, a
     knitted layer or a coat clears winter. Measured on the *warmest* layer rather than
     the sum, since a tee under a coat is as warm as the coat
+  - **A wear can differ from the outfit it came from.** Throwing a coat over a saved
+    outfit, or swapping the shoes, shouldn't mean inventing a near-duplicate outfit —
+    that multiplies the list, splits the wear history of what is plainly one look, and
+    fills suggestions with variations of the same thing. The outfit is the idea; the
+    wear is the fact. Logging a wear can add pieces or leave pieces out **for that day
+    only**, and the outfit's own definition is untouched. Crucially the additions are
+    real wears: a coat added this way gets its own wear count and last-worn date, the
+    same as if it had been logged on its own
   - **Planning ahead: a forward-dated entry is a plan, not a wear.** Deciding on
     Sunday what to wear on Friday is the other half of what a calendar is for, so a
     future date is accepted by the same form that logs the past — the row that says "I'm
