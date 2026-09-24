@@ -1,0 +1,20 @@
+[
+  {
+    "file": "IMG_1856.jpeg",
+    "name": "Brown leather belt with silver buckle",
+    "category": "ACCESSORY",
+    "subcategory": "belt",
+    "colors": [
+      "brown"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "formality": "smart",
+    "material": "leather",
+    "pattern": "solid"
+  }
+]

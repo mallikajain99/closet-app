@@ -63,7 +63,12 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
   // Sits on the head.
   HAT: { slot: "HEAD", label: "Hat", height: 0.12, anchor: 0.02, edge: "top", z: 60 },
   JEWELRY: { slot: "JEWELRY", label: "Jewelry", height: 0.06, anchor: SHOULDER, edge: "top", z: 70 },
-  ACCESSORY: { slot: "OTHER", label: "Accessory", height: 0.1, anchor: 0.2, edge: "top", z: 65 },
+  // Anchored at the waist, not below the shoulder where this used to sit. The
+  // accessories that actually exist here are belts, and a belt is worn over both the
+  // top and the waistband — hence the paint order above them but below shoes and bags.
+  // A scarf would want the neck; when one arrives it needs an anchor override rather
+  // than a second guess at one number for both.
+  ACCESSORY: { slot: "OTHER", label: "Accessory", height: 0.06, anchor: WAIST, edge: "top", z: 45 },
 
   // Everything worn on the upper body hangs from the shoulders, so they all share one
   // anchor and only their hems differ.
@@ -105,6 +110,7 @@ export const BUILDER_SLOTS = [
   { slot: "BOTTOM" as Slot, label: "Bottom", categories: ["BOTTOM"] as Category[] },
   { slot: "SHOES" as Slot, label: "Shoes", categories: ["SHOE"] as Category[] },
   { slot: "BAG" as Slot, label: "Bag", categories: ["BAG"] as Category[] },
+  { slot: "OTHER" as Slot, label: "Accessory", categories: ["ACCESSORY"] as Category[] },
 ] as const;
 
 /**

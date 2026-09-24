@@ -90,6 +90,7 @@ const GARMENT_BASE: Record<string, number> = {
   // Added when dresses, tanks and accessories entered the closet. Without a base each
   // fell to its category default, which priced a floor-length gown and a jersey mini
   // the same — the single number a category fallback can offer.
+  belt: 35,
   camisole: 25,
   bodysuit: 35,
   "bike shorts": 28,
