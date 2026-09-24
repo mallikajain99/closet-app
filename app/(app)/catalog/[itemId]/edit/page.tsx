@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getSignedImageUrl } from "@/lib/images/storage";
 import { getSilhouetteSuggestions } from "@/lib/items/suggestions";
 import { readSilhouette } from "@/lib/validation/item";
+import { tagVocabulary } from "@/lib/tags/vocabulary";
 
 export const metadata = { title: "Edit item" };
 
@@ -25,11 +26,7 @@ export default async function EditItemPage(
       where: { id: itemId, userId: user.id },
       include: { tags: { include: { tag: true } } },
     }),
-    db.tag.findMany({
-      where: { userId: user.id },
-      orderBy: { name: "asc" },
-      select: { name: true },
-    }),
+    tagVocabulary(user.id),
     getSilhouetteSuggestions(user.id),
   ]);
 
@@ -53,7 +50,7 @@ export default async function EditItemPage(
         <ItemForm
           action={action}
           submitLabel="Save changes"
-          allTags={tags.map((tag) => tag.name)}
+          allTags={tags}
           silhouetteSuggestions={silhouetteSuggestions}
           imageUrl={imageUrl}
           values={{

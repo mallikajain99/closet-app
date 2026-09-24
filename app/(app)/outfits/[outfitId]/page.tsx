@@ -20,6 +20,7 @@ import { CATEGORY_SLOT } from "@/lib/outfits/slots";
 import { readSilhouette } from "@/lib/validation/item";
 import { setAsideLabel } from "@/lib/outfits/set-aside";
 import { happened, hasHappened } from "@/lib/wears/planned";
+import { tagVocabulary } from "@/lib/tags/vocabulary";
 
 export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfitId]">) {
   const { outfitId } = await props.params;
@@ -74,11 +75,7 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
 
   const items = (outfit.currentVersion?.items ?? []).map((link) => link.item);
   const urls = await getItemImageUrls(items, "thumbnail");
-  const allTags = await db.tag.findMany({
-    where: { userId: user.id },
-    orderBy: { name: "asc" },
-    select: { name: true },
-  });
+  const allTags = await tagVocabulary(user.id);
   // Outfit photos live in the originals bucket: they are photographs of a person, not
   // garment cutouts, so nothing processes them.
   const photoUrls = await getSignedImageUrls(outfit.photos.map((photo) => photo.imageKey));
@@ -175,7 +172,8 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
           <SetAsideControl
             outfitId={outfit.id}
             label={setAsideLabel(outfit)}
-            allTags={allTags.map((tag) => tag.name)}
+            allTags={allTags}
+            currentTags={outfit.tags.map((link) => link.tag.name)}
           />
 
           <OutfitPhotos

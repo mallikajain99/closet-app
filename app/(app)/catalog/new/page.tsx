@@ -3,8 +3,8 @@ import Link from "next/link";
 import { createItem } from "@/app/(app)/catalog/actions";
 import { ItemForm } from "@/components/catalog/item-form";
 import { requireUser } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { getSilhouetteSuggestions } from "@/lib/items/suggestions";
+import { tagVocabulary } from "@/lib/tags/vocabulary";
 
 export const metadata = { title: "Add an item" };
 
@@ -20,11 +20,7 @@ export default async function NewItemPage() {
   const user = await requireUser();
 
   const [tags, silhouetteSuggestions] = await Promise.all([
-    db.tag.findMany({
-      where: { userId: user.id },
-      orderBy: { name: "asc" },
-      select: { name: true },
-    }),
+    tagVocabulary(user.id),
     getSilhouetteSuggestions(user.id),
   ]);
 
@@ -41,7 +37,7 @@ export default async function NewItemPage() {
         <ItemForm
           action={createItem}
           submitLabel="Save item"
-          allTags={tags.map((tag) => tag.name)}
+          allTags={tags}
           silhouetteSuggestions={silhouetteSuggestions}
         />
       </div>

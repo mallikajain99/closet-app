@@ -451,8 +451,7 @@ export async function setOutfitAside(
     },
   });
 
-  revalidatePath(`/outfits/${outfitId}`);
-  revalidatePath("/outfits");
+  revalidatePath("/outfits", "layout");
   revalidatePath("/");
   return { ok: true };
 }
@@ -488,4 +487,38 @@ export async function shelveOutfitsTagged(
   revalidatePath("/outfits");
   revalidatePath("/");
   return { ok: true, count };
+}
+
+/**
+ * Set an outfit's tags outright.
+ *
+ * Saves the moment a chip is added or removed rather than waiting for a submit. The
+ * tag box next to "Not right now" is the one place tagging happens *while thinking
+ * about something else* — asking the user to also press a button there loses the tag,
+ * which is exactly what happened.
+ */
+export async function replaceOutfitTags(
+  outfitId: string,
+  tagNames: string[],
+): Promise<{ ok: boolean }> {
+  const user = await requireUser();
+
+  const outfit = await db.outfit.findFirst({
+    where: { id: outfitId, userId: user.id },
+    select: { id: true },
+  });
+  if (!outfit) return { ok: false };
+
+  const tags = await connectOutfitTags(user.id, tagNames);
+  await db.outfit.update({
+    where: { id: outfit.id },
+    data: { tags: { deleteMany: {}, create: tags.map((tag) => ({ tagId: tag.id })) } },
+  });
+
+  // `layout` so sibling outfit pages and their edit forms pick up a newly coined tag.
+  // Revalidating only this outfit left "Office" missing from every other outfit's tag
+  // suggestions until something else happened to bust the cache.
+  revalidatePath("/outfits", "layout");
+  revalidatePath("/");
+  return { ok: true };
 }

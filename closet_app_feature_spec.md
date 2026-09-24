@@ -200,6 +200,14 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
     diary, and the goal here is not a diary — it is seeing an outfit on a body, which an
     outfit-level photo already does. Requiring a photo every morning also guarantees the
     feature goes unused
+  - **Season suitability is judged on the outfit, not on each garment.** Every piece
+    must be wearable in the season — one wool coat rules a look out of July — but that
+    alone gets autumn wrong. A t-shirt is genuinely all-season, worn alone in July and
+    under a sweater in January, so judging pieces separately let a t-shirt-and-jeans
+    outfit through the autumn filter with nothing over it. The outfit as a whole must
+    also cover you: bare arms clear summer and spring, covered arms clear autumn, a
+    knitted layer or a coat clears winter. Measured on the *warmest* layer rather than
+    the sum, since a tee under a coat is as warm as the coat
   - **Planning ahead: a forward-dated entry is a plan, not a wear.** Deciding on
     Sunday what to wear on Friday is the other half of what a calendar is for, so a
     future date is accepted by the same form that logs the past — the row that says "I'm

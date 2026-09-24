@@ -32,6 +32,7 @@ export type RecommendableItem = {
   seasons: Season[];
   formality: string | null;
   material: string | null;
+  sleeveLength: string | null;
 };
 
 /**
@@ -162,16 +163,58 @@ export function suitsContext(outfit: RecommendableOutfit, context: Context): boo
 }
 
 /**
+ * How much an upper-body garment covers you, roughly.
+ *
+ * 0 bare arms · 1 covered arms · 2 a knitted layer · 3 a real coat.
+ */
+function warmth(item: RecommendableItem): number {
+  const text = `${item.subcategory ?? ""} ${item.name}`.toLowerCase();
+  const sleeves = (item.sleeveLength ?? "").toLowerCase();
+
+  if (item.category === "OUTERWEAR") {
+    return /\b(coat|puffer|parka|trench)\b/.test(text) ? 3 : 2;
+  }
+  if (item.category !== "TOP" && item.category !== "DRESS") return 0;
+
+  if (/\b(sweater|cardigan|knit|fleece|turtleneck)\b/.test(text)) return 2;
+  return sleeves === "long" || sleeves === "three-quarter" ? 1 : 0;
+}
+
+/** The least covered-up an outfit may be, per season. */
+const SEASON_MINIMUM_WARMTH: Record<Season, number> = {
+  SUMMER: 0,
+  SPRING: 0,
+  FALL: 1,
+  WINTER: 2,
+};
+
+/**
  * Whether an outfit works in a season.
  *
- * Every piece has to be wearable then — one wool coat is enough to rule a look out of
- * July. An item with no seasons recorded is treated as all-season rather than as
- * no-season, so missing data never silently empties the list.
+ * Two tests, because one is not enough.
+ *
+ * Every piece has to be *wearable* then — one wool coat rules a look out of July, and
+ * an item with no seasons recorded counts as all-season so missing data never empties
+ * the list.
+ *
+ * But that alone gets autumn wrong, and did: a t-shirt is genuinely an all-season
+ * garment, since it is worn alone in July and under a sweater in January, so widening
+ * it let a t-shirt-and-jeans outfit through the autumn filter with nothing over it.
+ * Season-appropriateness is a property of the *outfit*, not of its pieces separately —
+ * so the warmest upper-body layer has to clear a floor: covered arms by autumn, a
+ * knitted layer or a coat by winter.
  */
 export function suitsSeason(outfit: RecommendableOutfit, season: Season): boolean {
-  return outfit.items.every(
+  const wearable = outfit.items.every(
     (item) => item.seasons.length === 0 || item.seasons.includes(season),
   );
+  if (!wearable) return false;
+
+  const floor = SEASON_MINIMUM_WARMTH[season];
+  if (floor === 0) return true;
+
+  // The warmest layer, not the total: a tee under a coat is as warm as the coat.
+  return Math.max(0, ...outfit.items.map(warmth)) >= floor;
 }
 
 /** The season the given date falls in, for the default filter. */

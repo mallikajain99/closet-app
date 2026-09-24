@@ -191,6 +191,7 @@ export default async function Home(props: PageProps<"/">) {
           seasons: item.seasons,
           formality: readAttribute(item.attributes, "formality"),
           material: readAttribute(item.attributes, "material"),
+          sleeveLength: readAttribute(item.attributes, "sleeveLength"),
         })),
       };
     }),

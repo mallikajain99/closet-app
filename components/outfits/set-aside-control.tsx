@@ -3,7 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { bringOutfitBack, setOutfitAside } from "@/app/(app)/outfits/actions";
+import {
+  bringOutfitBack,
+  replaceOutfitTags,
+  setOutfitAside,
+} from "@/app/(app)/outfits/actions";
 import { ChipListInput } from "@/components/ui/chip-list-input";
 import { SNOOZE_OPTIONS } from "@/lib/outfits/set-aside";
 
@@ -25,22 +29,40 @@ export function SetAsideControl({
   outfitId,
   label,
   allTags,
+  currentTags,
 }: {
   outfitId: string;
   /** "Shelved", "Back in 12 days", or null when the outfit is in rotation. */
   label: string | null;
   allTags: string[];
+  currentTags: string[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
   const [pending, start] = useTransition();
+
+  /**
+   * Tags save on the chip, not on a submit.
+   *
+   * The first version carried them along with whichever snooze button was pressed,
+   * which meant typing a tag and then closing the panel silently threw it away. This
+   * box is the one place tagging happens while thinking about something else, so it
+   * has to behave like every other edit here and save itself.
+   */
+  const saveTags = (next: string[]) => {
+    setSaving(true);
+    start(async () => {
+      await replaceOutfitTags(outfitId, next);
+      setSaving(false);
+      router.refresh();
+    });
+  };
 
   const act = (input: { snoozeDays?: number; shelve?: boolean }) =>
     start(async () => {
-      await setOutfitAside(outfitId, { ...input, tagNames: tags });
+      await setOutfitAside(outfitId, input);
       setOpen(false);
-      setTags([]);
       router.refresh();
     });
 
@@ -83,15 +105,17 @@ export function SetAsideControl({
           </p>
 
           <div className="mt-3">
-            <p className="text-meta text-ink-subtle">Why? (optional)</p>
+            <p className="text-meta text-ink-subtle">
+              Why? {saving ? "Saved" : "Saves as you add"}
+            </p>
             <div className="mt-1">
               <ChipListInput
                 name="setAsideTags"
-                defaultValue={[]}
+                defaultValue={currentTags}
                 label="Add a reason"
-                placeholder="Interview, too formal, summer only…"
+                placeholder="Office, interview, too formal…"
                 suggestions={allTags}
-                onChange={setTags}
+                onChange={saveTags}
               />
             </div>
           </div>

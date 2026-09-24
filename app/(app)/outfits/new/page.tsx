@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
 import { BUILDER_SLOTS } from "@/lib/outfits/slots";
+import { tagVocabulary } from "@/lib/tags/vocabulary";
 
 export const metadata = { title: "Build an outfit" };
 
@@ -36,7 +37,7 @@ export default async function NewOutfitPage(props: PageProps<"/outfits/new">) {
         thumbnailKey: true,
       },
     }),
-    db.tag.findMany({ where: { userId: user.id }, orderBy: { name: "asc" }, select: { name: true } }),
+    tagVocabulary(user.id),
   ]);
 
   const urls = await getItemImageUrls(items, "thumbnail");
@@ -76,7 +77,7 @@ export default async function NewOutfitPage(props: PageProps<"/outfits/new">) {
       <div className="mt-10">
         <OutfitBuilder
           itemsBySlot={itemsBySlot}
-          allTags={tags.map((tag) => tag.name)}
+          allTags={tags}
           action={createOutfit}
           initialItemIds={requested.filter((id) => items.some((item) => item.id === id))}
         />

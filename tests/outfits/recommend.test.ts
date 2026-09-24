@@ -22,6 +22,7 @@ const item = (over: Partial<RecommendableItem> = {}): RecommendableItem => ({
   seasons: [],
   formality: "casual",
   material: null,
+  sleeveLength: "long",
   ...over,
 });
 
@@ -80,8 +81,47 @@ describe("suitsSeason", () => {
   });
 
   it("treats an unrecorded season as all-season, not no-season", () => {
-    // Missing data must never silently empty the list.
-    expect(suitsSeason(outfit({ items: [item({ seasons: [] })] }), "WINTER")).toBe(true);
+    // Missing data must never silently exclude an item.
+    expect(suitsSeason(outfit({ items: [item({ seasons: [] })] }), "SPRING")).toBe(true);
+  });
+
+  it("won't send you out in autumn with bare arms", () => {
+    // The bug this rule exists for. A t-shirt is genuinely all-season — worn alone in
+    // July, under a sweater in January — so widening it let a t-shirt-and-jeans
+    // outfit through the autumn filter with nothing over it.
+    const tee = item({ category: "TOP", subcategory: "t-shirt", sleeveLength: "short" });
+    const jeans = item({ category: "BOTTOM", subcategory: "jeans", sleeveLength: null });
+
+    expect(suitsSeason(outfit({ items: [tee, jeans] }), "FALL")).toBe(false);
+    expect(suitsSeason(outfit({ items: [tee, jeans] }), "SUMMER")).toBe(true);
+  });
+
+  it("passes the same tee once something is over it", () => {
+    const tee = item({ category: "TOP", subcategory: "t-shirt", sleeveLength: "short" });
+    const jeans = item({ category: "BOTTOM", subcategory: "jeans", sleeveLength: null });
+    const cardigan = item({ category: "OUTERWEAR", subcategory: "cardigan" });
+
+    expect(suitsSeason(outfit({ items: [tee, jeans, cardigan] }), "FALL")).toBe(true);
+  });
+
+  it("asks more of winter than of autumn", () => {
+    const longSleeve = item({ category: "TOP", subcategory: "top", sleeveLength: "long" });
+    const jeans = item({ category: "BOTTOM", subcategory: "jeans", sleeveLength: null });
+    const look = outfit({ items: [longSleeve, jeans] });
+
+    // Covered arms is enough for autumn; winter wants a knit or a coat.
+    expect(suitsSeason(look, "FALL")).toBe(true);
+    expect(suitsSeason(look, "WINTER")).toBe(false);
+
+    const sweater = item({ category: "TOP", subcategory: "sweater", sleeveLength: "long" });
+    expect(suitsSeason(outfit({ items: [sweater, jeans] }), "WINTER")).toBe(true);
+  });
+
+  it("measures the warmest layer, not the total", () => {
+    // A tee under a coat is as warm as the coat; adding a second tee changes nothing.
+    const tee = item({ category: "TOP", subcategory: "t-shirt", sleeveLength: "short" });
+    const coat = item({ category: "OUTERWEAR", subcategory: "coat" });
+    expect(suitsSeason(outfit({ items: [tee, tee, coat] }), "WINTER")).toBe(true);
   });
 });
 
