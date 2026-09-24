@@ -165,6 +165,21 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
     photograph of the user in the outfit is perfectly accurate by construction, where every
     rendered approach is an approximation. Photographing an outfit once covers it forever
   - Assign one or more categories/tags (e.g., "Work," "Date Night," "Going Out," "Gym")
+  - **"Not right now" — an outfit can be set aside without being deleted.** Rotation
+    favours whatever has gone longest unworn, which means the outfits deliberately not
+    being reached for rise to the top and stay there: an interview suit is, by that
+    measure, the most overdue thing in the closet. Two shapes, because they answer
+    different questions — a **snooze** is time-boxed and resurfaces on its own, right
+    for something worn to death lately; **shelving** has no end date, which is honest
+    about a garment waiting on an occasion rather than on a clock. Set-aside outfits
+    disappear from both suggestions and least-worn, and the outfit page says which
+    hold it is under and offers to undo it. Inferring this from formality was
+    considered and rejected: the user rotates work outfits in on purpose while never
+    touching the most formal ones, and only she knows which is which
+  - **Setting one aside asks why, in tags.** That moment is the only one where the
+    reason is actually known, and the reason is usually a word worth keeping —
+    "interview", "too formal", "summer only". They go into the ordinary tag vocabulary
+    rather than a private field, so the same word can later set aside the whole class
   - **The saved-outfit list filters by occasion tag**, the same URL-backed chip row the
     catalog uses, with counts taken from the unfiltered set so the chips keep their
     numbers while narrowing. "What can I wear to work" is the question the tags exist to

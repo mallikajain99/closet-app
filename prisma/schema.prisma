@@ -204,6 +204,20 @@ model Outfit {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Set aside: kept in the closet, kept out of suggestions.
+  ///
+  /// Two shapes of "not right now", because they answer different questions. A snooze
+  /// is time-boxed and resurfaces on its own — right for something worn seasonally or
+  /// just worn to death lately. Shelving has no end date, which is the honest model
+  /// for an interview suit: it is not that you won't wear it for N days, it is that
+  /// you will wear it when the occasion arrives and never before.
+  ///
+  /// The alternative was inferring this from formality, and that guesses wrong — the
+  /// user rotates work outfits in on purpose while genuinely never reaching for the
+  /// most formal ones. Only she knows which is which, so she says.
+  snoozedUntil DateTime?
+  shelvedAt    DateTime?
+
   /// The version currently shown when the outfit is opened.
   currentVersionId String?        @unique @db.Uuid
   currentVersion   OutfitVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)

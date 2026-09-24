@@ -1,12 +1,14 @@
 import Link from "next/link";
 
 import { OutfitFigure, type FigureItem } from "@/components/outfits/outfit-figure";
+import { LeastWorn } from "@/components/outfits/least-worn";
 import { Recommendations } from "@/components/outfits/recommendations";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
 import { readSilhouette } from "@/lib/validation/item";
 import { recommend, seasonOf } from "@/lib/outfits/recommend";
+import { notSetAside } from "@/lib/outfits/set-aside";
 import { WEEKDAYS, isoOf, weekOf } from "@/lib/wears/calendar";
 import { happened, hasHappened } from "@/lib/wears/planned";
 import type { Season } from "@prisma/client";
@@ -37,6 +39,9 @@ export default async function Home(props: PageProps<"/">) {
     ? (asked as Season)
     : seasonOf();
   const query = typeof searchParams.q === "string" ? searchParams.q : "";
+  const unwornPage = Number(
+    typeof searchParams.unworn === "string" ? searchParams.unworn : 0,
+  );
 
   const week = weekOf();
   const from = week[0];
@@ -96,7 +101,9 @@ export default async function Home(props: PageProps<"/">) {
   // Every saved outfit, with just enough to rank it: what it is made of, when it was
   // last actually worn (plans excluded), and whether it already has a day this week.
   const saved = await db.outfit.findMany({
-    where: { userId: user.id },
+    // Snoozed and shelved outfits are out of both lists below — that is the whole
+    // point of setting one aside.
+    where: { userId: user.id, ...notSetAside() },
     select: {
       id: true,
       name: true,
@@ -198,6 +205,36 @@ export default async function Home(props: PageProps<"/">) {
     shownOutfits.flatMap((outfit) =>
       (outfit.currentVersion?.items ?? []).map((link) => link.item),
     ),
+    "thumbnail",
+  );
+
+  /**
+   * Least worn, ranked by nothing but time — no variety damping, no season filter.
+   *
+   * Damping is right for "what should I wear today" and wrong here: an outfit
+   * resembling something worn constantly would be held down forever and never surface,
+   * which is precisely the gap this list fills.
+   */
+  const leastWorn = [...saved]
+    .map((outfit) => ({
+      id: outfit.id,
+      name: outfit.name,
+      lastWornOn: outfit.wearLogs[0]?.wornOn ?? null,
+      pieces: (outfit.currentVersion?.items ?? []).map((link) => link.item),
+    }))
+    .filter((outfit) => outfit.pieces.length > 0)
+    .sort((a, b) => {
+      // Never worn first; then oldest wear first.
+      if (!a.lastWornOn && !b.lastWornOn) return a.name.localeCompare(b.name);
+      if (!a.lastWornOn) return -1;
+      if (!b.lastWornOn) return 1;
+      return a.lastWornOn.getTime() - b.lastWornOn.getTime();
+    });
+
+  const PAGE = 5;
+  const leastWornPage = leastWorn.slice(unwornPage * PAGE, unwornPage * PAGE + PAGE);
+  const leastWornUrls = await getItemImageUrls(
+    leastWornPage.flatMap((outfit) => outfit.pieces),
     "thumbnail",
   );
 
@@ -309,6 +346,32 @@ export default async function Home(props: PageProps<"/">) {
         season={season}
         query={query}
         figureItems={figureItems}
+      />
+
+      <LeastWorn
+        page={unwornPage}
+        season={season}
+        query={query}
+        outfits={leastWorn.map((outfit, index) => ({
+          id: outfit.id,
+          name: outfit.name,
+          lastWornOn: outfit.lastWornOn,
+          // Only the page on screen has signed URLs; the rest carry none and are
+          // never rendered, which keeps this to one signing round trip.
+          items:
+            index >= unwornPage * PAGE && index < unwornPage * PAGE + PAGE
+              ? outfit.pieces.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  category: item.category,
+                  subcategory: item.subcategory,
+                  silhouette: readSilhouette(item.attributes),
+                  renderHeight: item.renderHeight,
+                  renderWidth: item.renderWidth,
+                  imageUrl: leastWornUrls.get(item.id) ?? null,
+                }))
+              : [],
+        }))}
       />
     </main>
   );

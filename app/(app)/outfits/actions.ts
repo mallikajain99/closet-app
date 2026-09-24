@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { createSignedUpload, deleteImage } from "@/lib/images/storage";
 import { uniqueOutfitName } from "@/lib/outfits/naming-sync";
 import { outfitSignature } from "@/lib/outfits/signature";
+import { snoozeUntil } from "@/lib/outfits/set-aside";
 import { CATEGORY_SLOT } from "@/lib/outfits/slots";
 import { canonicalize } from "@/lib/text";
 import { wearInputSchema } from "@/lib/validation/wear";
@@ -409,4 +410,82 @@ export async function requestOutfitPhotoUpload(fileName: string) {
   const user = await requireUser();
   const { key, token } = await createSignedUpload(user.id, fileName);
   return { key, token };
+}
+
+/**
+ * Hold an outfit back from suggestions, optionally tagging why.
+ *
+ * The tags are the ordinary outfit tags, not a private reason field, and that is
+ * deliberate: "interview" is a useful thing to know about an outfit whether or not it
+ * is currently shelved, and the moment of setting something aside is the one moment
+ * the user actually knows why. Capturing it there builds the vocabulary that later
+ * makes "shelve everything tagged interview" possible.
+ */
+export async function setOutfitAside(
+  outfitId: string,
+  input: { snoozeDays?: number; shelve?: boolean; tagNames?: string[] },
+): Promise<{ ok: boolean; message?: string }> {
+  const user = await requireUser();
+
+  const outfit = await db.outfit.findFirst({
+    where: { id: outfitId, userId: user.id },
+    select: { id: true },
+  });
+  if (!outfit) return { ok: false, message: "That outfit no longer exists." };
+
+  const tags = await connectOutfitTags(user.id, input.tagNames ?? []);
+
+  await db.outfit.update({
+    where: { id: outfit.id },
+    data: {
+      shelvedAt: input.shelve ? new Date() : null,
+      snoozedUntil: input.snoozeDays ? snoozeUntil(input.snoozeDays) : null,
+      tags: {
+        // Added, never replaced: setting something aside must not quietly drop the
+        // occasion tags it already carried.
+        connectOrCreate: tags.map((tag) => ({
+          where: { outfitId_tagId: { outfitId: outfit.id, tagId: tag.id } },
+          create: { tagId: tag.id },
+        })),
+      },
+    },
+  });
+
+  revalidatePath(`/outfits/${outfitId}`);
+  revalidatePath("/outfits");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** Put it back in the rotation. */
+export async function bringOutfitBack(outfitId: string): Promise<{ ok: boolean }> {
+  const user = await requireUser();
+  const { count } = await db.outfit.updateMany({
+    where: { id: outfitId, userId: user.id },
+    data: { shelvedAt: null, snoozedUntil: null },
+  });
+
+  revalidatePath(`/outfits/${outfitId}`);
+  revalidatePath("/outfits");
+  revalidatePath("/");
+  return { ok: count > 0 };
+}
+
+/** Shelve every outfit carrying a tag — the shortcut for a whole class at once. */
+export async function shelveOutfitsTagged(
+  tagName: string,
+): Promise<{ ok: boolean; count: number }> {
+  const user = await requireUser();
+  const { count } = await db.outfit.updateMany({
+    where: {
+      userId: user.id,
+      shelvedAt: null,
+      tags: { some: { tag: { name: { equals: tagName, mode: "insensitive" } } } },
+    },
+    data: { shelvedAt: new Date(), snoozedUntil: null },
+  });
+
+  revalidatePath("/outfits");
+  revalidatePath("/");
+  return { ok: true, count };
 }

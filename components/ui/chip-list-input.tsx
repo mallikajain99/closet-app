@@ -18,12 +18,18 @@ export function ChipListInput({
   suggestions,
   placeholder,
   label,
+  onChange,
 }: {
   name: string;
   defaultValue: string[];
   suggestions: string[];
   placeholder?: string;
   label: string;
+  /**
+   * For callers outside a form. The hidden inputs cover form submission; a control
+   * that calls a Server Action directly needs the values in hand instead.
+   */
+  onChange?: (values: string[]) => void;
 }) {
   const [values, setValues] = useState<string[]>(defaultValue);
   const [draft, setDraft] = useState("");
@@ -41,7 +47,12 @@ export function ChipListInput({
     const canonical = existing ?? value;
 
     if (values.some((v) => v.toLowerCase() === canonical.toLowerCase())) return;
-    setValues([...values, canonical]);
+    commit([...values, canonical]);
+  }
+
+  function commit(next: string[]) {
+    setValues(next);
+    onChange?.(next);
   }
 
   const unused = suggestions.filter(
@@ -60,7 +71,7 @@ export function ChipListInput({
             <li key={value}>
               <button
                 type="button"
-                onClick={() => setValues(values.filter((v) => v !== value))}
+                onClick={() => commit(values.filter((v) => v !== value))}
                 className="label border border-ink bg-ink px-3 py-1.5 text-canvas"
                 aria-label={`Remove ${value}`}
               >

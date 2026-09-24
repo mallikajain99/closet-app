@@ -10,6 +10,7 @@ import {
 import { DeleteItemButton } from "@/components/catalog/delete-item-button";
 import { OutfitFigure } from "@/components/outfits/outfit-figure";
 import { OutfitPhotos } from "@/components/outfits/outfit-photos";
+import { SetAsideControl } from "@/components/outfits/set-aside-control";
 import { LogWear } from "@/components/wears/log-wear";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -17,6 +18,7 @@ import { getItemImageUrls, getSignedImageUrls } from "@/lib/images/storage";
 import { costPerWearCents, formatCents, outfitCostPerWear } from "@/lib/stats/cost-per-wear";
 import { CATEGORY_SLOT } from "@/lib/outfits/slots";
 import { readSilhouette } from "@/lib/validation/item";
+import { setAsideLabel } from "@/lib/outfits/set-aside";
 import { happened, hasHappened } from "@/lib/wears/planned";
 
 export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfitId]">) {
@@ -37,6 +39,8 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
         select: { id: true, wornOn: true },
       },
       photos: { orderBy: { order: "asc" }, select: { id: true, imageKey: true } },
+      snoozedUntil: true,
+      shelvedAt: true,
       currentVersion: {
         select: {
           items: {
@@ -70,6 +74,11 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
 
   const items = (outfit.currentVersion?.items ?? []).map((link) => link.item);
   const urls = await getItemImageUrls(items, "thumbnail");
+  const allTags = await db.tag.findMany({
+    where: { userId: user.id },
+    orderBy: { name: "asc" },
+    select: { name: true },
+  });
   // Outfit photos live in the originals bucket: they are photographs of a person, not
   // garment cutouts, so nothing processes them.
   const photoUrls = await getSignedImageUrls(outfit.photos.map((photo) => photo.imageKey));
@@ -161,6 +170,12 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
             }))}
             action={logOutfitWear.bind(null, outfit.id)}
             remove={removeOutfitWear.bind(null, outfit.id)}
+          />
+
+          <SetAsideControl
+            outfitId={outfit.id}
+            label={setAsideLabel(outfit)}
+            allTags={allTags.map((tag) => tag.name)}
           />
 
           <OutfitPhotos
