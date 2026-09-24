@@ -7,6 +7,7 @@ import {
   seasonOf,
   suitsContext,
   suitsSeason,
+  repeatPenalty,
 } from "@/lib/outfits/recommend";
 
 const NOW = new Date("2026-09-20T12:00:00Z");
@@ -14,6 +15,7 @@ const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
 
 const item = (over: Partial<RecommendableItem> = {}): RecommendableItem => ({
   name: "Thing",
+  category: "TOP",
   subcategory: "top",
   brand: null,
   colors: [],
@@ -160,5 +162,84 @@ describe("recommend", () => {
   it("skips an empty outfit", () => {
     const { casual } = recommend({ ...args, outfits: [outfit({ items: [] })] });
     expect(casual).toEqual([]);
+  });
+});
+
+describe("variety", () => {
+  const args = { season: "FALL" as const, now: NOW };
+  const withPieces = (name: string, pieces: RecommendableItem[]) =>
+    outfit({ name, items: pieces, lastWornOn: daysAgo(30) });
+
+  const cardigan = (colour: string) =>
+    item({ category: "OUTERWEAR", subcategory: "cardigan", colors: [colour] });
+  const jeans = item({ category: "BOTTOM", subcategory: "jeans" });
+  const shirt = item({ category: "TOP", subcategory: "shirt" });
+
+  it("holds back a different cardigan when a cardigan was worn yesterday", () => {
+    // The user's own example: a different colour is still a cardigan.
+    const another = withPieces("Green cardigan look", [cardigan("green"), jeans]);
+    const plain = withPieces("Shirt and jeans", [shirt, jeans]);
+
+    const { casual } = recommend({
+      ...args,
+      outfits: [another, plain],
+      recent: [{ category: "OUTERWEAR", subcategory: "cardigan", daysAgo: 1 }],
+    });
+    expect(casual[0].outfit.name).toBe("Shirt and jeans");
+  });
+
+  it("says which kind it is holding back", () => {
+    const { casual } = recommend({
+      ...args,
+      outfits: [withPieces("Green cardigan look", [cardigan("green"), jeans])],
+      recent: [{ category: "OUTERWEAR", subcategory: "cardigan", daysAgo: 1 }],
+    });
+    expect(casual[0].reason).toContain("cardigan worn recently");
+  });
+
+  it("barely minds the same jeans again, because that is what jeans are for", () => {
+    const a = withPieces("Jeans one", [shirt, jeans]);
+    const b = withPieces("Jeans two", [shirt, jeans]);
+
+    const before = recommend({ ...args, outfits: [a, b] }).casual[0].score;
+    const after = recommend({
+      ...args,
+      outfits: [a, b],
+      recent: [{ category: "BOTTOM", subcategory: "jeans", daysAgo: 1 }],
+    }).casual[0].score;
+
+    expect(before - after).toBeLessThan(10);
+  });
+
+  it("fades with distance, so four days ago costs less than yesterday", () => {
+    const look = withPieces("Cardigan look", [cardigan("green"), jeans]);
+    const yesterday = repeatPenalty(look, [
+      { category: "OUTERWEAR", subcategory: "cardigan", daysAgo: 1 },
+    ]).penalty;
+    const older = repeatPenalty(look, [
+      { category: "OUTERWEAR", subcategory: "cardigan", daysAgo: 4 },
+    ]).penalty;
+
+    expect(older).toBeLessThan(yesterday);
+    expect(older).toBeGreaterThan(0);
+  });
+
+  it("forgets entirely past the window", () => {
+    const look = withPieces("Cardigan look", [cardigan("green"), jeans]);
+    const { penalty } = repeatPenalty(look, [
+      { category: "OUTERWEAR", subcategory: "cardigan", daysAgo: 9 },
+    ]);
+    expect(penalty).toBe(0);
+  });
+
+  it("counts a kind once, however many of it an outfit contains", () => {
+    const one = withPieces("One cardigan", [cardigan("green"), jeans]);
+    const two = withPieces("Two cardigans", [cardigan("green"), cardigan("navy"), jeans]);
+    const recent = [{ category: "OUTERWEAR" as const, subcategory: "cardigan", daysAgo: 1 }];
+
+    expect(repeatPenalty(two, recent).penalty).toBeCloseTo(
+      repeatPenalty(one, recent).penalty,
+      5,
+    );
   });
 });

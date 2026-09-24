@@ -1,4 +1,4 @@
-import type { Season } from "@prisma/client";
+import type { Category, Season } from "@prisma/client";
 
 /**
  * Suggest what to wear next.
@@ -25,6 +25,7 @@ export const CONTEXT_LABELS: Record<Context, string> = {
 
 export type RecommendableItem = {
   name: string;
+  category: Category;
   subcategory: string | null;
   brand: string | null;
   colors: string[];
@@ -32,6 +33,37 @@ export type RecommendableItem = {
   formality: string | null;
   material: string | null;
 };
+
+/**
+ * How much repeating a *kind* of garment costs, by category.
+ *
+ * From the user: wearing a cardigan on Monday makes a different cardigan on Tuesday
+ * feel repetitive, but the same jeans three days running is just what jeans are for.
+ * The difference is not the garment's identity — it is which pieces carry an outfit's
+ * character. Outerwear and dresses are what someone notices; bottoms are the
+ * infrastructure underneath, so they barely count.
+ *
+ * Applied per *subcategory*, not per item, which is the whole point: a different
+ * cardigan is still a cardigan.
+ */
+const REPEAT_COST: Record<Category, number> = {
+  OUTERWEAR: 55,
+  DRESS: 50,
+  TOP: 35,
+  SHOE: 25,
+  HAT: 20,
+  BAG: 10,
+  JEWELRY: 5,
+  // Deliberately near-free: the same jeans under everything is normal wear, not a rut.
+  BOTTOM: 8,
+  ACCESSORY: 5,
+};
+
+/** How far back a kind still counts as recently worn. */
+const REPEAT_WINDOW_DAYS = 4;
+
+/** A kind of garment worn recently, and how many days ago. */
+export type RecentKind = { category: Category; subcategory: string | null; daysAgo: number };
 
 export type RecommendableOutfit = {
   id: string;
@@ -176,11 +208,60 @@ export function queryScore(outfit: RecommendableOutfit, query: string): number {
   return hits.size * 60;
 }
 
+/**
+ * What an outfit costs for repeating kinds worn in the last few days.
+ *
+ * Counted once per subcategory, so a two-cardigan outfit is not penalised twice, and
+ * faded by recency — yesterday's cardigan weighs more than one from three days ago.
+ */
+export function repeatPenalty(
+  outfit: RecommendableOutfit,
+  recent: readonly RecentKind[],
+): { penalty: number; repeated: string | null } {
+  if (recent.length === 0) return { penalty: 0, repeated: null };
+
+  const kindOf = (category: Category, subcategory: string | null) =>
+    `${category}:${lower(subcategory) || "—"}`;
+
+  // The freshest wear of each kind is the one that matters.
+  const freshest = new Map<string, number>();
+  for (const entry of recent) {
+    if (entry.daysAgo > REPEAT_WINDOW_DAYS) continue;
+    const key = kindOf(entry.category, entry.subcategory);
+    const seen = freshest.get(key);
+    if (seen === undefined || entry.daysAgo < seen) freshest.set(key, entry.daysAgo);
+  }
+
+  let penalty = 0;
+  let worst = 0;
+  let repeated: string | null = null;
+
+  for (const key of new Set(outfit.items.map((item) => kindOf(item.category, item.subcategory)))) {
+    const daysAgo = freshest.get(key);
+    if (daysAgo === undefined) continue;
+
+    const category = key.split(":")[0] as Category;
+    // Linear fade to nothing at the edge of the window.
+    const freshness = 1 - daysAgo / (REPEAT_WINDOW_DAYS + 1);
+    const cost = (REPEAT_COST[category] ?? 10) * freshness;
+    penalty += cost;
+
+    if (cost > worst) {
+      worst = cost;
+      const kind = key.split(":")[1];
+      repeated = kind === "—" ? category.toLowerCase() : kind;
+    }
+  }
+
+  return { penalty, repeated };
+}
+
 export function recommend({
   outfits,
   season,
   query = "",
   now = new Date(),
+  recent = [],
   // Five across, so a row is a choice rather than a verdict.
   perContext = 5,
 }: {
@@ -188,6 +269,8 @@ export function recommend({
   season: Season;
   query?: string;
   now?: Date;
+  /** Kinds of garment worn in the last few days, for the variety penalty. */
+  recent?: readonly RecentKind[];
   perContext?: number;
 }): Record<Context, Recommendation[]> {
   const eligible = outfits.filter(
@@ -203,13 +286,20 @@ export function recommend({
       .map((outfit) => {
         const rotation = rotationScore(outfit, now);
         const matched = queryScore(outfit, query);
+        const repeat = repeatPenalty(outfit, recent);
         return {
           outfit,
           matched,
           // Already on the calendar this week: still shown if nothing else fits, but
           // never ahead of an outfit that isn't yet spoken for.
-          score: rotation.score + matched - (outfit.spokenFor ? 1000 : 0),
-          reason: matched > 0 ? "Matches what you asked for" : rotation.reason,
+          score:
+            rotation.score + matched - repeat.penalty - (outfit.spokenFor ? 1000 : 0),
+          reason:
+            matched > 0
+              ? "Matches what you asked for"
+              : repeat.repeated
+                ? `${rotation.reason} · ${repeat.repeated} worn recently`
+                : rotation.reason,
         };
       })
       // Once the user has described something, an outfit that doesn't match is out

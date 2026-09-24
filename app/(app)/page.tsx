@@ -132,9 +132,34 @@ export default async function Home(props: PageProps<"/">) {
 
   const spokenForIds = new Set(wears.map((wear) => wear.outfitId).filter(Boolean));
 
+  /**
+   * What kinds of garment were worn in the last few days, so the same kind isn't
+   * suggested straight back. Reaches further than the week on screen, because Sunday's
+   * suggestions have to know about the previous Thursday.
+   */
+  const lookback = new Date(from);
+  lookback.setUTCDate(lookback.getUTCDate() - 7);
+  const recentWears = await db.wearLog.findMany({
+    where: { userId: user.id, wornOn: { gte: lookback, ...happened().wornOn } },
+    select: {
+      wornOn: true,
+      items: { select: { item: { select: { category: true, subcategory: true } } } },
+    },
+  });
+
+  const startOfToday = new Date(`${today}T00:00:00Z`).getTime();
+  const recent = recentWears.flatMap((wear) =>
+    wear.items.map((link) => ({
+      category: link.item.category,
+      subcategory: link.item.subcategory,
+      daysAgo: Math.round((startOfToday - wear.wornOn.getTime()) / 86_400_000),
+    })),
+  );
+
   const groups = recommend({
     season,
     query,
+    recent,
     outfits: saved.map((outfit) => {
       const pieces = (outfit.currentVersion?.items ?? []).map((link) => link.item);
       return {
@@ -146,6 +171,7 @@ export default async function Home(props: PageProps<"/">) {
         spokenFor: spokenForIds.has(outfit.id),
         items: pieces.map((item) => ({
           name: item.name,
+          category: item.category,
           subcategory: item.subcategory,
           brand: item.brand,
           colors: item.colors,
