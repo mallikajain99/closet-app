@@ -35,28 +35,34 @@ export type RecommendableItem = {
 };
 
 /**
- * How much repeating a *kind* of garment costs, by category.
+ * How much repeating a *kind* of garment damps an outfit's score, by category.
  *
  * From the user: wearing a cardigan on Monday makes a different cardigan on Tuesday
- * feel repetitive, but the same jeans three days running is just what jeans are for.
- * The difference is not the garment's identity — it is which pieces carry an outfit's
- * character. Outerwear and dresses are what someone notices; bottoms are the
- * infrastructure underneath, so they barely count.
+ * feel repetitive, but the same jeans — or the same shoes — several days running is
+ * just what those are for. The difference is not the garment's identity, it is which
+ * pieces carry an outfit's character.
  *
  * Applied per *subcategory*, not per item, which is the whole point: a different
  * cardigan is still a cardigan.
+ *
+ * A *fraction of the score*, not a fixed number of points. Subtracting points was the
+ * first attempt and it did not work: a never-worn outfit scores 120, so a 55-point
+ * cardigan penalty still left it ahead of everything worn in the last month, and the
+ * user saw two cardigan outfits suggested the day after wearing one. A multiplier
+ * bites the same amount whatever the base score is.
  */
-const REPEAT_COST: Record<Category, number> = {
-  OUTERWEAR: 55,
-  DRESS: 50,
-  TOP: 35,
-  SHOE: 25,
-  HAT: 20,
-  BAG: 10,
-  JEWELRY: 5,
-  // Deliberately near-free: the same jeans under everything is normal wear, not a rut.
-  BOTTOM: 8,
-  ACCESSORY: 5,
+const REPEAT_DAMPING: Record<Category, number> = {
+  OUTERWEAR: 0.8,
+  DRESS: 0.75,
+  TOP: 0.55,
+  HAT: 0.3,
+  BAG: 0.15,
+  // Near-free, and level with each other at the user's own request: she rewears one
+  // pair of shoes across most outfits, the way she rewears one pair of jeans.
+  SHOE: 0.1,
+  BOTTOM: 0.1,
+  JEWELRY: 0.05,
+  ACCESSORY: 0.05,
 };
 
 /** How far back a kind still counts as recently worn. */
@@ -217,8 +223,8 @@ export function queryScore(outfit: RecommendableOutfit, query: string): number {
 export function repeatPenalty(
   outfit: RecommendableOutfit,
   recent: readonly RecentKind[],
-): { penalty: number; repeated: string | null } {
-  if (recent.length === 0) return { penalty: 0, repeated: null };
+): { keep: number; repeated: string | null } {
+  if (recent.length === 0) return { keep: 1, repeated: null };
 
   const kindOf = (category: Category, subcategory: string | null) =>
     `${category}:${lower(subcategory) || "—"}`;
@@ -232,7 +238,8 @@ export function repeatPenalty(
     if (seen === undefined || entry.daysAgo < seen) freshest.set(key, entry.daysAgo);
   }
 
-  let penalty = 0;
+  // Compounding, so two repeated kinds damp more than either alone.
+  let keep = 1;
   let worst = 0;
   let repeated: string | null = null;
 
@@ -243,17 +250,17 @@ export function repeatPenalty(
     const category = key.split(":")[0] as Category;
     // Linear fade to nothing at the edge of the window.
     const freshness = 1 - daysAgo / (REPEAT_WINDOW_DAYS + 1);
-    const cost = (REPEAT_COST[category] ?? 10) * freshness;
-    penalty += cost;
+    const damping = (REPEAT_DAMPING[category] ?? 0.2) * freshness;
+    keep *= 1 - damping;
 
-    if (cost > worst) {
-      worst = cost;
+    if (damping > worst) {
+      worst = damping;
       const kind = key.split(":")[1];
       repeated = kind === "—" ? category.toLowerCase() : kind;
     }
   }
 
-  return { penalty, repeated };
+  return { keep, repeated };
 }
 
 export function recommend({
@@ -292,8 +299,10 @@ export function recommend({
           matched,
           // Already on the calendar this week: still shown if nothing else fits, but
           // never ahead of an outfit that isn't yet spoken for.
+          // Damping applies to rotation only. What the user asked for in words is not
+          // less true because she wore a cardigan yesterday.
           score:
-            rotation.score + matched - repeat.penalty - (outfit.spokenFor ? 1000 : 0),
+            rotation.score * repeat.keep + matched - (outfit.spokenFor ? 1000 : 0),
           reason:
             matched > 0
               ? "Matches what you asked for"

@@ -197,39 +197,54 @@ describe("variety", () => {
     expect(casual[0].reason).toContain("cardigan worn recently");
   });
 
-  it("barely minds the same jeans again, because that is what jeans are for", () => {
-    const a = withPieces("Jeans one", [shirt, jeans]);
-    const b = withPieces("Jeans two", [shirt, jeans]);
+  it("barely minds the same jeans or shoes again — that is what those are for", () => {
+    const look = withPieces("Jeans", [shirt, jeans]);
+    for (const kind of [
+      { category: "BOTTOM" as const, subcategory: "jeans", daysAgo: 1 },
+    ]) {
+      expect(repeatPenalty(look, [kind]).keep).toBeGreaterThan(0.9);
+    }
+  });
 
-    const before = recommend({ ...args, outfits: [a, b] }).casual[0].score;
-    const after = recommend({
+  it("outranks a never-worn cardigan outfit with a worn non-cardigan one", () => {
+    // The failure that prompted the rewrite: a fixed penalty could not overcome the
+    // 120 a never-worn outfit scores, so two cardigans were suggested the day after
+    // wearing one. Damping is a fraction of the score, so it bites at any magnitude.
+    const freshCardigan = outfit({
+      name: "Never-worn cardigan",
+      wearCount: 0,
+      lastWornOn: null,
+      items: [cardigan("navy"), jeans],
+    });
+    const plain = outfit({ name: "Plain", lastWornOn: daysAgo(30), items: [shirt, jeans] });
+
+    const { casual } = recommend({
       ...args,
-      outfits: [a, b],
-      recent: [{ category: "BOTTOM", subcategory: "jeans", daysAgo: 1 }],
-    }).casual[0].score;
-
-    expect(before - after).toBeLessThan(10);
+      outfits: [freshCardigan, plain],
+      recent: [{ category: "OUTERWEAR", subcategory: "cardigan", daysAgo: 0 }],
+    });
+    expect(casual[0].outfit.name).toBe("Plain");
   });
 
   it("fades with distance, so four days ago costs less than yesterday", () => {
     const look = withPieces("Cardigan look", [cardigan("green"), jeans]);
     const yesterday = repeatPenalty(look, [
       { category: "OUTERWEAR", subcategory: "cardigan", daysAgo: 1 },
-    ]).penalty;
+    ]).keep;
     const older = repeatPenalty(look, [
       { category: "OUTERWEAR", subcategory: "cardigan", daysAgo: 4 },
-    ]).penalty;
+    ]).keep;
 
-    expect(older).toBeLessThan(yesterday);
-    expect(older).toBeGreaterThan(0);
+    expect(older).toBeGreaterThan(yesterday);
+    expect(older).toBeLessThan(1);
   });
 
   it("forgets entirely past the window", () => {
     const look = withPieces("Cardigan look", [cardigan("green"), jeans]);
-    const { penalty } = repeatPenalty(look, [
+    const { keep } = repeatPenalty(look, [
       { category: "OUTERWEAR", subcategory: "cardigan", daysAgo: 9 },
     ]);
-    expect(penalty).toBe(0);
+    expect(keep).toBe(1);
   });
 
   it("counts a kind once, however many of it an outfit contains", () => {
@@ -237,8 +252,8 @@ describe("variety", () => {
     const two = withPieces("Two cardigans", [cardigan("green"), cardigan("navy"), jeans]);
     const recent = [{ category: "OUTERWEAR" as const, subcategory: "cardigan", daysAgo: 1 }];
 
-    expect(repeatPenalty(two, recent).penalty).toBeCloseTo(
-      repeatPenalty(one, recent).penalty,
+    expect(repeatPenalty(two, recent).keep).toBeCloseTo(
+      repeatPenalty(one, recent).keep,
       5,
     );
   });
