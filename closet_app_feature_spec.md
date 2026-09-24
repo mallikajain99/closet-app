@@ -376,6 +376,74 @@ scope. B's analysis is retained above should the trade-off ever be worth revisit
 
 ---
 
+## 7. Inspiration → Shopping List (specced, not built)
+
+Save outfit inspiration — a screenshot, a pin, a photo from a shop window — and have
+the app say which pieces you already own and which you'd need to buy. The output is a
+shopping list you can carry into a shop, ordered by how much each purchase would
+actually unlock.
+
+### Why this shape
+
+The catalog answers "what do I own". Recommendations answer "what should I wear". This
+answers the third question, the one that comes up standing in a shop: **"is this worth
+buying?"** — which is unanswerable without knowing what it would go with. A wish list
+built from real inspiration, checked against a real closet, is the only version of that
+which isn't guesswork.
+
+### The flow
+
+1. **Add an inspiration.** Upload an image; optionally a source URL and a note. No
+   processing pipeline: these are reference photos, not garments to cut out.
+2. **Read the garments out of it.** A vision model returns a short structured list —
+   category, colour, and a description each ("cream cable-knit sweater", "straight-leg
+   mid-wash jeans", "brown leather loafers"). This is the one genuinely new capability
+   and the quality of everything downstream depends on it.
+3. **Match each against the closet.** Category first, then colour family, then
+   subcategory and material. Three outcomes, and the middle one matters most:
+   - **Own it** — a confident match, shown with the item.
+   - **Close** — same category and subcategory, different colour, or a near-colour in
+     the same family. Shown as "you have something like this", with the item, so the
+     user decides whether it's near enough. This is the difference between a list that
+     saves money and one that just generates wants.
+   - **Missing** — nothing comparable. Goes on the wish list.
+4. **Rank the wish list by leverage**, not by how often an item appears. A piece that
+   completes *three* inspirations where you already own everything else is worth more
+   than one wanted by five looks you're otherwise missing half of. So each wanted item
+   carries the inspirations it would unlock, and "unlock" means *the only thing still
+   missing*.
+
+### Rules worth fixing now
+
+- **Matching is advisory and always reversible.** Every match can be corrected by hand
+  — "no, I don't have that" or "actually this counts". A wrong automatic match is worse
+  than no match, because it silently removes something from the shopping list.
+- **Nothing is auto-added to the catalog.** Buying is a separate act from cataloguing,
+  and a wish list that quietly becomes inventory would corrupt cost-per-wear.
+- **A wish-list item can be marked bought**, which links it to the catalog item and
+  recomputes which inspirations are now complete.
+- **Inspirations are not outfits.** They are references, and they never appear in
+  suggestions, the calendar, or wear tracking. The moment you own everything in one,
+  the app can offer to *build* the outfit from your items — but that is an offer, not
+  an automatic creation.
+
+### Data
+
+A new `Inspiration` (image key, source URL, note) and `InspirationPiece` (category,
+described colour, description, match status, optional matched `itemId`). The wish list
+is a view over unmatched pieces rather than its own table — a piece wanted by four
+inspirations is four rows that group, not one row with a count, so correcting one
+match doesn't rewrite the others.
+
+### Open questions
+
+- Which vision model, and whether the garment list should be confirmable by the user
+  before matching runs. Leaning yes: a bad read is cheap to fix at that point and
+  expensive to unpick afterwards.
+- Whether "close" matches should be tunable, or just always shown.
+
+---
+
 ## Suggested Additional Features to Consider
 
 These aren't in your original list but fit naturally given the data you'll already be capturing:
