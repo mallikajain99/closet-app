@@ -77,19 +77,26 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
   const items = wears.flatMap(shownItems);
   const urls = await getItemImageUrls(items, "thumbnail");
 
-  // Keyed by ISO date so the grid can look a day up directly. The outfit is carried
-  // alongside, because a day spent in a saved outfit should open that outfit rather
-  // than one of the garments in it.
-  type Day = { items: typeof items; outfitId: string | null; planned: boolean };
-  const byDay = new Map<string, Day>();
+  /**
+   * Keyed by ISO date, one entry per *wear* rather than one per day.
+   *
+   * Two outfits in a day used to be merged into a single composite — both tops, both
+   * pairs of shoes, stacked into one jumbled figure that was neither outfit, linking
+   * to whichever happened to be logged first. A day can hold more than one look, so
+   * the cell shows them side by side.
+   */
+  type Worn = { items: typeof items; outfitId: string | null; planned: boolean };
+  const byDay = new Map<string, Worn[]>();
   for (const wear of wears) {
     const key = isoOf(wear.wornOn);
-    const existing = byDay.get(key);
-    byDay.set(key, {
-      items: [...(existing?.items ?? []), ...shownItems(wear)],
-      outfitId: existing?.outfitId ?? wear.outfitId,
-      planned: !hasHappened(wear.wornOn),
-    });
+    byDay.set(key, [
+      ...(byDay.get(key) ?? []),
+      {
+        items: shownItems(wear),
+        outfitId: wear.outfitId,
+        planned: !hasHappened(wear.wornOn),
+      },
+    ]);
   }
 
   const weeks = buildMonthGrid(month);
@@ -99,8 +106,8 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
     new Date().getDate(),
   )));
 
-  const wornDays = [...byDay.values()].filter((day) => !day.planned).length;
-  const plannedDays = [...byDay.values()].filter((day) => day.planned).length;
+  const wornDays = [...byDay.values()].filter((day) => day.some((w) => !w.planned)).length;
+  const plannedDays = [...byDay.values()].filter((day) => day.every((w) => w.planned)).length;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-12">
@@ -143,8 +150,11 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
         {weeks.flat().map((cell, index) => {
           if (!cell) return <div key={`pad-${index}`} aria-hidden />;
 
-          const day = byDay.get(cell.iso);
-          const worn = day?.items ?? [];
+          // At most two fit side by side and stay legible; a third is counted.
+          const day = byDay.get(cell.iso) ?? [];
+          const shown = day.slice(0, 2);
+          const extra = day.length - shown.length;
+          const allPlanned = day.length > 0 && day.every((wear) => wear.planned);
 
           return (
             <div
@@ -154,9 +164,9 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
                 // days get no fill at all, so a sparse month reads as sparse.
                 // A planned day is outlined rather than filled: it reads as pencilled
                 // in, and keeps a month of intentions from looking like a month of wears.
-                worn.length === 0
+                day.length === 0
                   ? "relative aspect-square"
-                  : day?.planned
+                  : allPlanned
                     ? "relative aspect-square border border-dashed border-line-strong"
                     : "relative aspect-square bg-surface-sunken"
               }
@@ -173,7 +183,7 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
                   the user is already thinking about that date, so it opens a picker
                   with the date fixed and only the outfit left to choose. Past days
                   work too — an empty cell is often a wear not yet remembered. */}
-              {worn.length === 0 && (
+              {day.length === 0 && (
                 <Link
                   href={`/calendar/${cell.iso}`}
                   aria-label={`Add an outfit for ${cell.iso}`}
@@ -181,35 +191,53 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
                 />
               )}
 
-              {worn.length > 0 && (
-                <Link
-                  // A saved outfit opens the outfit; a day of loose items opens the
-                  // first garment.
-                  href={day?.outfitId ? `/outfits/${day.outfitId}` : `/catalog/${worn[0].id}`}
-                  title={`${day?.planned ? "Planned: " : ""}${worn.map((item) => item.name).join(", ")}`}
-                  className="absolute inset-0 flex items-center justify-center"
-                >
-                  {/* The same composite the outfit pages use, rather than a grid of
-                      thumbnails capped at four — which silently dropped pieces from a
-                      bigger outfit. Two-thirds of a square cell's width makes the 2:3
-                      figure exactly as tall as the cell. */}
-                  <div className="h-full" style={{ width: "66.67%" }}>
-                    <OutfitFigure
-                      items={worn.map((item) => ({
-                        id: item.id,
-                        name: item.name,
-                        category: item.category,
-                        subcategory: item.subcategory,
-                        silhouette: readSilhouette(item.attributes),
-                        renderHeight: item.renderHeight,
-                        renderWidth: item.renderWidth,
-                        imageUrl: urls.get(item.id) ?? null,
-                      }))}
-                      sizes="120px"
-                    />
-                  </div>
-                </Link>
+              {day.length > 0 && (
+                <div className="absolute inset-0 flex items-center justify-center gap-0.5">
+                  {shown.map((wear, at) => (
+                    <Link
+                      key={wear.outfitId ?? `loose-${at}`}
+                      // A saved outfit opens the outfit; a day of loose items opens
+                      // the first garment.
+                      href={
+                        wear.outfitId
+                          ? `/outfits/${wear.outfitId}`
+                          : `/catalog/${wear.items[0]?.id ?? ""}`
+                      }
+                      title={`${wear.planned ? "Planned: " : ""}${wear.items.map((item) => item.name).join(", ")}`}
+                      className="h-full min-w-0 flex-1"
+                    >
+                      {/* The same composite the outfit pages use, rather than a grid
+                          of thumbnails capped at four, which silently dropped pieces
+                          from a bigger outfit. Two side by side each keep the 2:3
+                          shape; stacking them would halve the height instead and a
+                          full-length look would vanish. */}
+                      <OutfitFigure
+                        items={wear.items.map((item) => ({
+                          id: item.id,
+                          name: item.name,
+                          category: item.category,
+                          subcategory: item.subcategory,
+                          silhouette: readSilhouette(item.attributes),
+                          renderHeight: item.renderHeight,
+                          renderWidth: item.renderWidth,
+                          imageUrl: urls.get(item.id) ?? null,
+                        }))}
+                        sizes="120px"
+                      />
+                    </Link>
+                  ))}
+
+                  {extra > 0 && (
+                    <Link
+                      href={`/calendar/${cell.iso}`}
+                      className="label absolute bottom-1 right-1 bg-canvas/90 px-1 text-ink-subtle"
+                    >
+                      +{extra}
+                    </Link>
+                  )}
+                </div>
               )}
+
             </div>
           );
         })}

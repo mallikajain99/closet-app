@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { createSignedUpload, deleteImage } from "@/lib/images/storage";
 import { uniqueOutfitName } from "@/lib/outfits/naming-sync";
 import { outfitSignature } from "@/lib/outfits/signature";
 import { CATEGORY_SLOT } from "@/lib/outfits/slots";
@@ -350,4 +351,62 @@ export async function removeOutfitWear(
   revalidatePath("/calendar");
   revalidatePath("/catalog");
   return { ok: true };
+}
+
+/**
+ * Attach a photo of the outfit worn.
+ *
+ * The file is already in storage — the browser PUT it straight there through a signed
+ * URL, the same path item photos take, because phone photos routinely exceed the
+ * 4.5 MB request body limit a Server Action is bound by. Only the key comes through
+ * here.
+ *
+ * No processing: these are photographs of a person, not garments on a hanger, so there
+ * is nothing to cut out and the segmentation pipeline would only damage them.
+ */
+export async function addOutfitPhoto(
+  outfitId: string,
+  imageKey: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const user = await requireUser();
+
+  const outfit = await db.outfit.findFirst({
+    where: { id: outfitId, userId: user.id },
+    select: { id: true, _count: { select: { photos: true } } },
+  });
+  if (!outfit) return { ok: false, message: "That outfit no longer exists." };
+
+  await db.outfitPhoto.create({
+    data: { outfitId: outfit.id, imageKey, order: outfit._count.photos },
+  });
+
+  revalidatePath(`/outfits/${outfitId}`);
+  revalidatePath("/outfits");
+  return { ok: true };
+}
+
+/** Remove a photo, and the stored file with it. */
+export async function deleteOutfitPhoto(photoId: string): Promise<{ ok: boolean }> {
+  const user = await requireUser();
+
+  const photo = await db.outfitPhoto.findFirst({
+    where: { id: photoId, outfit: { userId: user.id } },
+    select: { id: true, imageKey: true, outfitId: true },
+  });
+  if (!photo) return { ok: false };
+
+  await db.outfitPhoto.delete({ where: { id: photo.id } });
+  // After the row, so a storage failure can't orphan the record the UI reads.
+  await deleteImage(photo.imageKey);
+
+  revalidatePath(`/outfits/${photo.outfitId}`);
+  revalidatePath("/outfits");
+  return { ok: true };
+}
+
+/** Mint a one-time upload URL for an outfit photo; the browser PUTs the file itself. */
+export async function requestOutfitPhotoUpload(fileName: string) {
+  const user = await requireUser();
+  const { key, token } = await createSignedUpload(user.id, fileName);
+  return { key, token };
 }

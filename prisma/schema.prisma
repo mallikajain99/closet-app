@@ -211,9 +211,35 @@ model Outfit {
   versions OutfitVersion[] @relation("OutfitVersions")
   tags     OutfitTag[]
   wearLogs WearLog[]
+  photos   OutfitPhoto[]
 
   @@index([userId])
   @@map("outfits")
+}
+
+/// A photo of the user wearing this outfit (spec §2).
+///
+/// Attached to the outfit, not to a wear, and carrying no date: the point is to see the
+/// outfit on a body, not to record a particular day. A photo may well be taken long
+/// after — or before — any of the wears it illustrates, so dating it would imply a
+/// relationship that isn't there. Where an outfit has one, it *is* how the outfit is
+/// shown, and the layered composite becomes the fallback for outfits without.
+model OutfitPhoto {
+  id       String @id @default(uuid()) @db.Uuid
+  outfitId String @db.Uuid
+  outfit   Outfit @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+
+  /// Stored as uploaded. These are photographs of a person, not garment cutouts, so
+  /// they deliberately skip the segmentation pipeline — there is nothing to cut out.
+  imageKey String
+
+  /// Lowest first, so the user can choose which photo leads.
+  order Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([outfitId])
+  @@map("outfit_photos")
 }
 
 /// One exact combination of items. Editing an outfit creates a new version rather

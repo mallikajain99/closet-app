@@ -84,7 +84,13 @@ export default async function Home(props: PageProps<"/">) {
 
   const urls = await getItemImageUrls(wears.flatMap(piecesOf), "thumbnail");
 
-  const byDay = new Map(wears.map((wear) => [isoOf(wear.wornOn), wear]));
+  // Every wear on a day, not the last one — two outfits in a day used to silently
+  // drop the first here, where the calendar at least merged them.
+  const byDay = new Map<string, typeof wears>();
+  for (const wear of wears) {
+    const key = isoOf(wear.wornOn);
+    byDay.set(key, [...(byDay.get(key) ?? []), wear]);
+  }
   const today = isoOf(new Date());
 
   // Every saved outfit, with just enough to rank it: what it is made of, when it was
@@ -225,10 +231,12 @@ export default async function Home(props: PageProps<"/">) {
       <ul className="mt-8 grid grid-cols-7 gap-x-2 sm:gap-x-4">
         {week.map((day, index) => {
           const iso = isoOf(day);
-          const wear = byDay.get(iso);
+          const onDay = byDay.get(iso) ?? [];
+          const wear = onDay[0];
           const pieces = wear ? piecesOf(wear) : [];
           const isToday = iso === today;
           const isPlan = wear ? !hasHappened(wear.wornOn) : false;
+          const extra = onDay.length - 1;
 
           return (
             <li key={iso}>
@@ -288,6 +296,7 @@ export default async function Home(props: PageProps<"/">) {
               <p className="mt-2 truncate text-meta text-ink-muted">
                 {wear?.outfit?.name ??
                   (pieces.length > 0 ? `${pieces.length} pieces` : "Nothing planned")}
+                {extra > 0 && ` +${extra}`}
               </p>
               {isPlan && <p className="label text-ink-subtle">Planned</p>}
             </li>

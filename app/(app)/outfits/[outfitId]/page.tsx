@@ -9,10 +9,11 @@ import {
 } from "@/app/(app)/outfits/actions";
 import { DeleteItemButton } from "@/components/catalog/delete-item-button";
 import { OutfitFigure } from "@/components/outfits/outfit-figure";
+import { OutfitPhotos } from "@/components/outfits/outfit-photos";
 import { LogWear } from "@/components/wears/log-wear";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getItemImageUrls } from "@/lib/images/storage";
+import { getItemImageUrls, getSignedImageUrls } from "@/lib/images/storage";
 import { costPerWearCents, formatCents, outfitCostPerWear } from "@/lib/stats/cost-per-wear";
 import { CATEGORY_SLOT } from "@/lib/outfits/slots";
 import { readSilhouette } from "@/lib/validation/item";
@@ -35,6 +36,7 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
         take: 8,
         select: { id: true, wornOn: true },
       },
+      photos: { orderBy: { order: "asc" }, select: { id: true, imageKey: true } },
       currentVersion: {
         select: {
           items: {
@@ -68,6 +70,9 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
 
   const items = (outfit.currentVersion?.items ?? []).map((link) => link.item);
   const urls = await getItemImageUrls(items, "thumbnail");
+  // Outfit photos live in the originals bucket: they are photographs of a person, not
+  // garment cutouts, so nothing processes them.
+  const photoUrls = await getSignedImageUrls(outfit.photos.map((photo) => photo.imageKey));
 
   // Wear dates are stored as UTC midnight, so they must be formatted in UTC too.
   const dateLabel = (date: Date) =>
@@ -156,6 +161,14 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
             }))}
             action={logOutfitWear.bind(null, outfit.id)}
             remove={removeOutfitWear.bind(null, outfit.id)}
+          />
+
+          <OutfitPhotos
+            outfitId={outfit.id}
+            photos={outfit.photos.map((photo) => ({
+              id: photo.id,
+              url: photoUrls.get(photo.imageKey) ?? null,
+            }))}
           />
 
           <p className="label mt-8 text-ink-subtle">Pieces</p>
