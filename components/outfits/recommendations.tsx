@@ -103,14 +103,14 @@ export function Recommendations({
           <div key={context} className="mt-10">
             <p className="label text-ink-subtle">{CONTEXT_LABELS[context]}</p>
 
-            <ul className="mt-3 grid grid-cols-4 gap-x-3 sm:gap-x-6">
+            <ul className="mt-3 grid grid-cols-5 gap-x-3 sm:gap-x-5">
               {picks.map((pick) => (
                 <li key={pick.outfit.id}>
                   <Link href={`/outfits/${pick.outfit.id}`} className="group block">
                     <div className="bg-surface-sunken transition-opacity group-hover:opacity-80">
                       <OutfitFigure
                         items={figureItems.get(pick.outfit.id) ?? []}
-                        sizes="(max-width: 640px) 23vw, 230px"
+                        sizes="(max-width: 640px) 18vw, 180px"
                       />
                     </div>
                     <p className="mt-2 truncate text-ink">{pick.outfit.name}</p>
