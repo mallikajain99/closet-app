@@ -39,8 +39,15 @@ export function SetAsideControl({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [pending, start] = useTransition();
+  /**
+   * Two transitions, not one.
+   *
+   * Sharing a single `pending` meant saving a tag disabled the snooze and shelve
+   * buttons for as long as the refresh took — so the natural sequence, type "Office"
+   * then press Shelve, had the press land on a disabled button and do nothing at all.
+   */
+  const [savingTags, startTags] = useTransition();
+  const [holding, startHold] = useTransition();
 
   /**
    * Tags save on the chip, not on a submit.
@@ -50,17 +57,14 @@ export function SetAsideControl({
    * box is the one place tagging happens while thinking about something else, so it
    * has to behave like every other edit here and save itself.
    */
-  const saveTags = (next: string[]) => {
-    setSaving(true);
-    start(async () => {
+  const saveTags = (next: string[]) =>
+    startTags(async () => {
       await replaceOutfitTags(outfitId, next);
-      setSaving(false);
       router.refresh();
     });
-  };
 
   const act = (input: { snoozeDays?: number; shelve?: boolean }) =>
-    start(async () => {
+    startHold(async () => {
       await setOutfitAside(outfitId, input);
       setOpen(false);
       router.refresh();
@@ -72,9 +76,9 @@ export function SetAsideControl({
         <p className="label text-ink-subtle">{label}</p>
         <button
           type="button"
-          disabled={pending}
+          disabled={holding}
           onClick={() =>
-            start(async () => {
+            startHold(async () => {
               await bringOutfitBack(outfitId);
               router.refresh();
             })
@@ -106,7 +110,7 @@ export function SetAsideControl({
 
           <div className="mt-3">
             <p className="text-meta text-ink-subtle">
-              Why? {saving ? "Saved" : "Saves as you add"}
+              Why? {savingTags ? "Saving…" : "Saves as you add"}
             </p>
             <div className="mt-1">
               <ChipListInput
@@ -125,7 +129,7 @@ export function SetAsideControl({
               <button
                 key={option.days}
                 type="button"
-                disabled={pending}
+                disabled={holding}
                 onClick={() => act({ snoozeDays: option.days })}
                 className="label border border-line-strong px-4 py-2 text-ink-muted transition-colors hover:border-ink hover:text-ink disabled:opacity-50"
               >
@@ -134,7 +138,7 @@ export function SetAsideControl({
             ))}
             <button
               type="button"
-              disabled={pending}
+              disabled={holding}
               onClick={() => act({ shelve: true })}
               className="label bg-ink px-4 py-2 text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
             >

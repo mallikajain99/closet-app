@@ -167,8 +167,8 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
                 day.length === 0
                   ? "relative aspect-square"
                   : allPlanned
-                    ? "relative aspect-square border border-dashed border-line-strong"
-                    : "relative aspect-square bg-surface-sunken"
+                    ? "relative aspect-square overflow-hidden border border-dashed border-line-strong"
+                    : "relative aspect-square overflow-hidden bg-surface-sunken"
               }
             >
               <span
@@ -204,7 +204,13 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
                           : `/catalog/${wear.items[0]?.id ?? ""}`
                       }
                       title={`${wear.planned ? "Planned: " : ""}${wear.items.map((item) => item.name).join(", ")}`}
-                      className="h-full min-w-0 flex-1"
+                      // Width, not `flex-1`. `OutfitFigure` derives its own height as
+                      // 150% of its width, so a figure given the full width of a
+                      // square cell renders half again as tall as the cell and spills
+                      // out of it. Two-thirds makes one figure exactly cell-height;
+                      // two at 48% sit side by side and come out a little shorter.
+                      style={{ width: shown.length === 1 ? "66.67%" : "48%" }}
+                      className="block"
                     >
                       {/* The same composite the outfit pages use, rather than a grid
                           of thumbnails capped at four, which silently dropped pieces
