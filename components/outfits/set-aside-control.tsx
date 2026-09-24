@@ -48,6 +48,14 @@ export function SetAsideControl({
    */
   const [savingTags, startTags] = useTransition();
   const [holding, startHold] = useTransition();
+  /**
+   * Whatever went wrong, shown.
+   *
+   * The first version threw the action's result away, so a refusal — a missing
+   * outfit, a failed write — looked exactly like the button doing nothing, and
+   * "shelving doesn't work" had no way to become a diagnosis.
+   */
+  const [error, setError] = useState<string | null>(null);
 
   /**
    * Tags save on the chip, not on a submit.
@@ -65,9 +73,18 @@ export function SetAsideControl({
 
   const act = (input: { snoozeDays?: number; shelve?: boolean }) =>
     startHold(async () => {
-      await setOutfitAside(outfitId, input);
-      setOpen(false);
-      router.refresh();
+      setError(null);
+      try {
+        const result = await setOutfitAside(outfitId, input);
+        if (!result.ok) {
+          setError(result.message ?? "That didn't save.");
+          return;
+        }
+        setOpen(false);
+        router.refresh();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "That didn't save.");
+      }
     });
 
   if (label) {
@@ -123,6 +140,12 @@ export function SetAsideControl({
               />
             </div>
           </div>
+
+          {error && (
+            <p role="alert" className="mt-3 text-meta text-signal-danger">
+              {error}
+            </p>
+          )}
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {SNOOZE_OPTIONS.map((option) => (

@@ -93,9 +93,41 @@ export type Recommendation = {
 
 const DAY = 86_400_000;
 
-/** Formality values that read as workwear, and as off-duty. */
-const WORK_FORMALITY = new Set(["smart", "dressy", "formal"]);
+/**
+ * Formality values that read as workwear, and as off-duty.
+ *
+ * "dressy" used to count as work and does not: it is the evening end of the scale, and
+ * including it swept going-out clothes into the work column. Work is "smart" — the
+ * blazer end of tidy, not the satin end.
+ */
+const WORK_FORMALITY = new Set(["smart"]);
 const CASUAL_FORMALITY = new Set(["casual", "simple"]);
+
+/**
+ * Tags naming an occasion that isn't one of the three everyday contexts.
+ *
+ * An outfit tagged "going out" is a statement about what it is for, and guessing at it
+ * from formality anyway is how a going-out outfit ended up under Work. These tags stop
+ * the inference: without an explicit casual/work/gym tag, such an outfit belongs to
+ * none of them.
+ *
+ * Only occasions, deliberately — a descriptive tag like "warm" or "colorful" says
+ * nothing about when a thing is worn and must not exclude it from everything.
+ */
+const OCCASION_TAGS = new Set([
+  "going out",
+  "night out",
+  "date",
+  "date night",
+  "wedding",
+  "party",
+  "cocktail",
+  "formal",
+  "interview",
+  "beach",
+  "holiday",
+  "vacation",
+]);
 
 /**
  * Activewear has no formality of its own — "casual" covers both a linen shirt and a
@@ -144,6 +176,9 @@ export function suitsContext(outfit: RecommendableOutfit, context: Context): boo
   if (tags.includes(context)) return true;
   // A tag naming a *different* context is a statement that it isn't this one.
   if (CONTEXTS.some((other) => other !== context && tags.includes(other))) return false;
+  // Nor is it an everyday outfit at all if it is tagged for an occasion and nothing
+  // else. Inferring past that put a "going out" outfit in the work column.
+  if (tags.some((tag) => OCCASION_TAGS.has(tag))) return false;
 
   const formalities = outfit.items.map((item) => lower(item.formality)).filter(Boolean);
 

@@ -470,6 +470,10 @@ export async function setOutfitAside(
 
   const tags = await connectOutfitTags(user.id, input.tagNames ?? []);
 
+  console.log(
+    `setOutfitAside ${outfitId} shelve=${Boolean(input.shelve)} snooze=${input.snoozeDays ?? "-"}`,
+  );
+
   await db.outfit.update({
     where: { id: outfit.id },
     data: {
