@@ -227,15 +227,19 @@ export async function removeBackground(source: Buffer): Promise<Buffer> {
   return Buffer.from(await imageResponse.arrayBuffer());
 }
 
-/** Binary mask of the clothing in the frame, hanger excluded. */
-export async function clothingMask(source: Buffer): Promise<Buffer> {
+/** Binary mask of whatever the prompt names. */
+async function promptedMask(
+  source: Buffer,
+  maskPrompt: string,
+  negativePrompt: string,
+): Promise<Buffer> {
   const dataUri = await forRequest(source);
 
   const version = await latestVersionOf(MASK_MODEL);
   const response = await postPrediction(version, {
     image: dataUri,
-    mask_prompt: MASK_PROMPT,
-    negative_mask_prompt: MASK_NEGATIVE_PROMPT,
+    mask_prompt: maskPrompt,
+    negative_mask_prompt: negativePrompt,
     adjustment_factor: 0,
   });
 
@@ -262,6 +266,34 @@ export async function clothingMask(source: Buffer): Promise<Buffer> {
   if (!maskResponse.ok) throw new Error(`Could not download the mask (${maskResponse.status}).`);
 
   return Buffer.from(await maskResponse.arrayBuffer());
+}
+
+/** Binary mask of the clothing in the frame, hanger excluded. */
+export async function clothingMask(source: Buffer): Promise<Buffer> {
+  return promptedMask(source, MASK_PROMPT, MASK_NEGATIVE_PROMPT);
+}
+
+/**
+ * Binary mask of the support structure — the thing to erase, named positively.
+ *
+ * The whole module used to work by subtraction: erase what the clothing mask does not
+ * call clothing. That is the assumption every failure here has come from, because a
+ * coarse mask misses rope toggles, ribbed collar bands, pale pinstripes and spaghetti
+ * straps, and each omission read as something to delete. Every fix since has been a
+ * geometric rule bolted on to stop the subtraction eating a garment.
+ *
+ * Asking where the *hanger* is inverts that. A pixel is only erased when two
+ * independent models agree — this one says hanger, and the clothing mask declines to
+ * say clothing. A missed strap is then merely not-clothing, which no longer means
+ * anything on its own.
+ */
+export async function hangerMask(source: Buffer): Promise<Buffer> {
+  return promptedMask(
+    source,
+    "clothes hanger,coat hanger,hanger,clothes hanger hook",
+    // The garment, so the model is pushed away from calling fabric part of the hanger.
+    "clothing,garment,shirt,dress,trousers,fabric",
+  );
 }
 
 /**
@@ -458,6 +490,8 @@ function eraseOutside(
   garmentLeft: number,
   garmentRight: number,
   holes: Uint8Array,
+  /** Where two models agree there is a hanger; null when they found nothing. */
+  agreed: Uint8Array | null,
 ) {
   const keep = new Uint8Array(alpha.length).fill(255);
   const visited = new Uint8Array(alpha.length);
@@ -549,6 +583,72 @@ function eraseOutside(
     islands.push({ pixels, minRow, maxRow, minCol, maxCol });
   }
 
+  /**
+   * Which pixels of a doomed island actually go.
+   *
+   * A spaghetti strap loops over the hanger, so strap and hanger arrive as one island
+   * and erasing the island whole took every camisole's straps with it. Taking the
+   * hanger out first breaks that join: what is left falls into separate pieces, and a
+   * strap is distinguishable from a hanger arm by being taller than it is wide.
+   *
+   * With no hanger mask to subtract — a pale wire hanger the model missed — the whole
+   * island is one wide piece and goes as before, which is the recall this pass exists
+   * for.
+   */
+  const survivors = (island: Island): number[] => {
+    if (!agreed) return island.pixels;
+
+    const remaining = island.pixels.filter((index) => agreed[index] !== 1);
+    if (remaining.length === 0) return island.pixels;
+
+    const inIsland = new Set(remaining);
+    const seen = new Set<number>();
+    const doomed: number[] = island.pixels.filter((index) => agreed[index] === 1);
+
+    for (const start of remaining) {
+      if (seen.has(start)) continue;
+
+      const piece: number[] = [];
+      const stack = [start];
+      seen.add(start);
+      let minRow = height, maxRow = 0, minCol = width, maxCol = 0;
+
+      while (stack.length > 0) {
+        const index = stack.pop()!;
+        piece.push(index);
+        const x = index % width;
+        const y = (index - x) / width;
+        if (y < minRow) minRow = y;
+        if (y > maxRow) maxRow = y;
+        if (x < minCol) minCol = x;
+        if (x > maxCol) maxCol = x;
+
+        for (const n of [
+          x > 0 ? index - 1 : -1,
+          x < width - 1 ? index + 1 : -1,
+          y > 0 ? index - width : -1,
+          y < height - 1 ? index + width : -1,
+        ]) {
+          if (n < 0 || seen.has(n) || !inIsland.has(n)) continue;
+          seen.add(n);
+          stack.push(n);
+        }
+      }
+
+      // Taller than wide, and reaching down to the garment: a strap. Anything else
+      // left over once the hanger is removed is more hanger.
+      //
+      // Only just taller than wide, not twice as tall — a camisole strap runs out
+      // diagonally to the hanger's arm, so demanding 2:1 spared the steep straps and
+      // cut the splayed ones off the same garment type. A hanger arm fails this the
+      // other way round: it is far wider than it is tall.
+      const strapLike = maxRow - minRow > maxCol - minCol && maxRow >= garmentTop;
+      if (!strapLike) doomed.push(...piece);
+    }
+
+    return doomed;
+  };
+
   // Horizontal extent too, not just vertical. A hanger's arms sit level with the
   // shoulders of a cropped top, so a vertical-only test declared the whole hanger
   // "inside the garment" and kept it.
@@ -582,7 +682,7 @@ function eraseOutside(
       );
     if (!doomed) continue;
 
-    for (const index of island.pixels) {
+    for (const index of survivors(island)) {
       if (keep[index] === 0) continue; // already cleared by the band above
       keep[index] = 0;
       erased += 1;
@@ -687,6 +787,28 @@ async function clearAbove(cutout: Buffer, width: number, cutRow: number) {
 }
 
 /**
+ * Punch the keep mask into the cutout's alpha.
+ *
+ * `dest-in` keeps the destination only where the overlay is opaque, so an RGBA overlay
+ * carrying the keep mask in its alpha channel erases the hanger while leaving every
+ * edge the cutout found intact.
+ */
+async function applyKeep(
+  cutout: Buffer,
+  keep: Uint8Array,
+  width: number,
+  height: number,
+): Promise<Buffer> {
+  const overlay = Buffer.alloc(width * height * 4);
+  for (let i = 0; i < keep.length; i += 1) overlay[i * 4 + 3] = keep[i];
+
+  return sharp(cutout)
+    .composite([{ input: overlay, raw: { width, height, channels: 4 }, blend: "dest-in" }])
+    .png()
+    .toBuffer();
+}
+
+/**
  * Cut out a garment: crisp edges from salient-object segmentation, hanger removed by
  * gating that result against a prompt-guided clothing mask.
  *
@@ -704,7 +826,13 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
    * hanger that might not even be there. Falling back to the plain cutout keeps the
    * garment; the worst case is a support structure left in frame.
    */
-  const [cutout, mask] = await Promise.all([
+  const emptyMaskIsFine = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/cannot reshape tensor of 0 elements|no plain mask/i.test(message)) throw error;
+    return null;
+  };
+
+  const [cutout, mask, hanger] = await Promise.all([
     removeBackground(source),
     clothingMask(source).catch((error: unknown) => {
       // Only a genuine "the model found nothing" is a reason to skip the gate. A
@@ -716,6 +844,9 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
       console.log(`    no clothing matched the mask prompt — keeping the plain cutout`);
       return null;
     }),
+    // Nothing hanger-shaped in frame is a perfectly ordinary answer — a flat-lay, or a
+    // retailer's product shot — so it falls back rather than failing.
+    hangerMask(source).catch(emptyMaskIsFine),
   ]);
 
   if (!mask) return cutout;
@@ -752,6 +883,37 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
     clothingColumn(gateBits, width, height, "right") + margin,
   );
 
+  /**
+   * Where two models agree there is a hanger.
+   *
+   * `hanger` says where the support structure is; `gate` is the clothing mask, grown,
+   * and its refusal to call a pixel clothing is the second opinion. Requiring both is
+   * what makes this safe to apply directly: the hanger mask alone would be trusted
+   * per-pixel, which is the mistake this module has made in every other form.
+   *
+   * When it finds anything, it *is* the answer — no geometry, no islands, no rules
+   * about what a bar looks like. A strap the clothing mask missed is simply
+   * not-clothing, which on its own now means nothing at all.
+   */
+  let agreed: Uint8Array | null = null;
+  if (hanger) {
+    const { bits: hangerBits } = await readMask(hanger, width, height);
+    // Grown a little, because the mask traces the bar a few pixels inside its edge and
+    // a surviving dark fringe reads as the whole hanger still being there.
+    const grown = await growGate(hangerBits, width, height, Math.max(2, height * 0.004));
+
+    let overlap = 0;
+    agreed = new Uint8Array(alpha.length);
+    for (let i = 0; i < alpha.length; i += 1) {
+      const isHanger = grown[i] >= 128 && gate[i] < 128 && alpha[i] > 0;
+      agreed[i] = isHanger ? 1 : 0;
+      if (isHanger) overlap += 1;
+    }
+    // An empty agreement means the models did not corroborate each other; fall through
+    // to the geometric pass rather than declaring the frame hanger-free.
+    if (overlap < Math.max(64, width * height * 0.0002)) agreed = null;
+  }
+
   const { keep, erasedFraction } = eraseOutside(
     alpha,
     gate,
@@ -762,6 +924,7 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
     garmentLeft,
     garmentRight,
     holes,
+    agreed,
   );
 
   // Fall back to the approach that cannot damage fabric, and accept the bar. Logged,
@@ -776,21 +939,6 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
     return clearAbove(cutout, width, Math.max(0, topRow - Math.round(height * 0.01)));
   }
 
-  // `dest-in` keeps the destination only where the overlay is opaque, so an RGBA overlay
-  // carrying the keep mask in its alpha channel erases the hanger while leaving every
-  // edge the cutout found intact.
-  const overlay = Buffer.alloc(width * height * 4);
-  for (let i = 0; i < keep.length; i += 1) overlay[i * 4 + 3] = keep[i];
-
-  return sharp(cutout)
-    .composite([
-      {
-        input: overlay,
-        raw: { width, height, channels: 4 },
-        blend: "dest-in",
-      },
-    ])
-    .png()
-    .toBuffer();
+  return applyKeep(cutout, keep, width, height);
 }
 
