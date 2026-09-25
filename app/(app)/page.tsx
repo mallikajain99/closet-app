@@ -11,6 +11,7 @@ import { recommend, seasonOf } from "@/lib/outfits/recommend";
 import { notSetAside } from "@/lib/outfits/set-aside";
 import { WEEKDAYS, isoOf, weekOf } from "@/lib/wears/calendar";
 import { happened, hasHappened } from "@/lib/wears/planned";
+import { itemsToShow } from "@/lib/wears/shown";
 import type { Season } from "@prisma/client";
 
 const SEASONS: Season[] = ["SPRING", "SUMMER", "FALL", "WINTER"];
@@ -74,7 +75,8 @@ export default async function Home(props: PageProps<"/">) {
       wornOn: true,
       outfitId: true,
       items: itemFields,
-      // The live outfit, not the version logged — same reason as the month view.
+      // Same three views as the month grid — see `itemsToShow`.
+      outfitVersion: { select: { items: itemFields } },
       outfit: {
         select: {
           name: true,
@@ -85,7 +87,11 @@ export default async function Home(props: PageProps<"/">) {
   });
 
   const piecesOf = (wear: (typeof wears)[number]) =>
-    (wear.outfit?.versions[0]?.items ?? wear.items).map((link) => link.item);
+    itemsToShow({
+      items: wear.items.map((link) => link.item),
+      pinnedItems: wear.outfitVersion?.items.map((link) => link.item) ?? null,
+      currentItems: wear.outfit?.versions[0]?.items.map((link) => link.item) ?? null,
+    });
 
   const urls = await getItemImageUrls(wears.flatMap(piecesOf), "thumbnail");
 

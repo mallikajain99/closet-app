@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { getItemImageUrls } from "@/lib/images/storage";
 import { readSilhouette } from "@/lib/validation/item";
 import { hasHappened } from "@/lib/wears/planned";
+import { itemsToShow } from "@/lib/wears/shown";
 import {
   WEEKDAYS,
   buildMonthGrid,
@@ -57,11 +58,10 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
       wornOn: true,
       outfitId: true,
       items: itemFields,
-      // The outfit as it stands today, not the version this wear was logged against.
-      // A wear keeps its own snapshot so the exact-combination stats stay honest, but
-      // the cell is labelled with the outfit's name and links to the outfit — showing a
-      // superseded version means the picture disagrees with where it goes. Editing an
-      // outfit to add shoes was silently leaving them off every day already logged.
+      // Three views of the same day, because deciding what to draw needs all of them:
+      // what was logged, the version it was pinned to, and the outfit as it stands.
+      // See `itemsToShow`.
+      outfitVersion: { select: { items: itemFields } },
       outfit: {
         select: {
           versions: { where: { supersededAt: null }, select: { items: itemFields } },
@@ -70,9 +70,12 @@ export default async function CalendarPage(props: PageProps<"/calendar">) {
     },
   });
 
-  /** What to show for a wear: the live outfit if it has one, else the logged garments. */
   const shownItems = (wear: (typeof wears)[number]) =>
-    (wear.outfit?.versions[0]?.items ?? wear.items).map((link) => link.item);
+    itemsToShow({
+      items: wear.items.map((link) => link.item),
+      pinnedItems: wear.outfitVersion?.items.map((link) => link.item) ?? null,
+      currentItems: wear.outfit?.versions[0]?.items.map((link) => link.item) ?? null,
+    });
 
   const items = wears.flatMap(shownItems);
   const urls = await getItemImageUrls(items, "thumbnail");
