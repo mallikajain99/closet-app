@@ -398,7 +398,7 @@ scope. B's analysis is retained above should the trade-off ever be worth revisit
 
 ---
 
-## 7. Inspiration → Shopping List (specced, not built)
+## 7. Inspiration → Shopping List
 
 Save outfit inspiration — a screenshot, a pin, a photo from a shop window — and have
 the app say which pieces you already own and which you'd need to buy. The output is a
@@ -457,12 +457,26 @@ is a view over unmatched pieces rather than its own table — a piece wanted by 
 inspirations is four rows that group, not one row with a count, so correcting one
 match doesn't rewrite the others.
 
+### Built
+
+Reading runs `gpt-4o-mini` through Replicate — structured output matters more than
+caption quality here, and asking a captioning model for JSON returns prose with braces
+in it. Categories are constrained to the closet's own vocabulary, so matching has
+something to match on.
+
+**OWNED requires three things to agree: the kind, the colour, and something that
+identifies that particular garment.** This was tightened after the first real run: a
+photo of a raspberry puff-sleeve *midi* dress was read as "red maxi dress" and matched
+a dark red maxi dress with full confidence — the exact failure the three-outcome design
+exists to prevent. Kind and colour alone describe a whole shelf, so without a third
+distinguishing signal the verdict is CLOSE and the user decides.
+
 ### Open questions
 
-- Which vision model, and whether the garment list should be confirmable by the user
-  before matching runs. Leaning yes: a bad read is cheap to fix at that point and
-  expensive to unpick afterwards.
-- Whether "close" matches should be tunable, or just always shown.
+- Whether the garment list should be confirmable before matching runs. A bad read is
+  cheap to fix at that point and expensive to unpick afterwards, but every verdict is
+  already correctable, which covers most of it.
+- Whether the closeness threshold should be tunable.
 
 ---
 

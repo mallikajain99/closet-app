@@ -11,6 +11,7 @@ const NAV = [
   { href: "/catalog", label: "Closet" },
   { href: "/outfits", label: "Outfits" },
   { href: "/calendar", label: "Calendar" },
+  { href: "/inspiration", label: "Inspiration" },
 ] as const;
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {

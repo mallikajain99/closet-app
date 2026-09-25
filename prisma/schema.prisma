@@ -90,10 +90,11 @@ model User {
   /// Days without a wear before an item is flagged as neglected (spec §3).
   neglectedThresholdDays Int @default(60)
 
-  items    Item[]
-  outfits  Outfit[]
-  tags     Tag[]
-  wearLogs WearLog[]
+  items        Item[]
+  outfits      Outfit[]
+  tags         Tag[]
+  wearLogs     WearLog[]
+  inspirations Inspiration[]
 
   @@map("users")
 }
@@ -150,9 +151,10 @@ model Item {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tags         ItemTag[]
-  outfitItems  OutfitItem[]
-  wearLogItems WearLogItem[]
+  tags              ItemTag[]
+  outfitItems       OutfitItem[]
+  wearLogItems      WearLogItem[]
+  inspirationPieces InspirationPiece[]
 
   @@index([userId, category])
   @@index([userId, brand])
@@ -358,6 +360,76 @@ model WearLogItem {
   @@id([wearLogId, itemId])
   @@index([itemId])
   @@map("wear_log_items")
+}
+
+// ---------------------------------------------------------------------------
+// Inspiration → shopping list (spec §7)
+// ---------------------------------------------------------------------------
+
+/// An outfit photographed somewhere else — a pin, a screenshot, a shop window.
+///
+/// Not an outfit: it is a reference, so it never appears in suggestions, the calendar
+/// or wear tracking. Its job is to be read for the garments in it and compared against
+/// what the user already owns.
+model Inspiration {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  imageKey  String
+  sourceUrl String?
+  note      String?
+
+  /// PENDING until the vision pass has read the garments out of it.
+  status ProcessingStatus @default(PENDING)
+  error  String?
+
+  createdAt DateTime @default(now())
+
+  pieces InspirationPiece[]
+
+  @@index([userId])
+  @@map("inspirations")
+}
+
+enum PieceMatch {
+  /// Nothing comparable in the closet — this is what the shopping list is made of.
+  MISSING
+  /// Same kind of garment, wrong colour. The outcome that decides whether the list
+  /// saves money: collapsing it into either neighbour makes the list lie.
+  CLOSE
+  /// Confident match against something owned.
+  OWNED
+}
+
+/// One garment read out of an inspiration.
+model InspirationPiece {
+  id            String      @id @default(uuid()) @db.Uuid
+  inspirationId String      @db.Uuid
+  inspiration   Inspiration @relation(fields: [inspirationId], references: [id], onDelete: Cascade)
+
+  /// As described by the vision pass, before matching.
+  description String
+  category    Category
+  color       String?
+
+  match PieceMatch @default(MISSING)
+
+  /// The closet item this was matched to, for OWNED and CLOSE.
+  matchedItemId String? @db.Uuid
+  matchedItem   Item?   @relation(fields: [matchedItemId], references: [id], onDelete: SetNull)
+
+  /// True once the user has confirmed or corrected the match, so a re-run leaves it be.
+  confirmed Boolean @default(false)
+
+  /// Set when a wanted piece has been bought, which is a separate act from cataloguing.
+  boughtAt DateTime?
+
+  order Int @default(0)
+
+  @@index([inspirationId])
+  @@index([matchedItemId])
+  @@map("inspiration_pieces")
 }
 
 // ---------------------------------------------------------------------------

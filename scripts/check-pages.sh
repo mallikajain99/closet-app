@@ -16,7 +16,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 LOG="${TMPDIR:-/tmp}/closet-dev.log"
-PAGES=(/ /catalog /outfits /outfits/new /calendar)
+PAGES=(/ /catalog /outfits /outfits/new /calendar /inspiration /inspiration/new)
 
 echo "→ restarting dev server"
 lsof -ti:3000 | xargs kill 2>/dev/null
