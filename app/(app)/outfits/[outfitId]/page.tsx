@@ -22,6 +22,7 @@ import { readSilhouette } from "@/lib/validation/item";
 import { setAsideLabel } from "@/lib/outfits/set-aside";
 import { happened, hasHappened } from "@/lib/wears/planned";
 import { tagVocabulary } from "@/lib/tags/vocabulary";
+import { addCompliment } from "@/app/(app)/wears/actions";
 
 export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfitId]">) {
   const { outfitId } = await props.params;
@@ -38,7 +39,7 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
       wearLogs: {
         orderBy: { wornOn: "desc" },
         take: 8,
-        select: { id: true, wornOn: true },
+        select: { id: true, wornOn: true, compliments: true },
       },
       photos: { orderBy: { order: "asc" }, select: { id: true, imageKey: true } },
       snoozedUntil: true,
@@ -77,6 +78,14 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
   const items = (outfit.currentVersion?.items ?? []).map((link) => link.item);
   const urls = await getItemImageUrls(items, "thumbnail");
   const allTags = await tagVocabulary(user.id);
+
+  // Summed across every wear, which is why the count lives on the wear rather than
+  // here: the outfit's total is derived, and the day each compliment landed is kept.
+  const complimented = await db.wearLog.aggregate({
+    where: { outfitId: outfit.id },
+    _sum: { compliments: true },
+  });
+  const compliments = complimented._sum.compliments ?? 0;
   // Everything not already in the outfit, for "also wore". Names only — the picker
   // is a search box, so signing 190 thumbnails to show eight would be waste.
   const closet = await db.item.findMany({
@@ -154,6 +163,12 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
                   : `${pricedItemCount} of ${totalItemCount} pieces priced — a lower bound`}
               </p>
             </div>
+            {compliments > 0 && (
+              <div>
+                <dt className="label text-ink-subtle">Compliments</dt>
+                <dd className="mt-1 text-3xl font-light tabular-nums">♥ {compliments}</dd>
+              </div>
+            )}
           </dl>
 
           {outfit.tags.length > 0 && (
@@ -176,9 +191,11 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
               wornOn: wear.wornOn.toISOString().slice(0, 10),
               label: dateLabel(wear.wornOn),
               planned: !hasHappened(wear.wornOn),
+              compliments: wear.compliments,
             }))}
             action={logOutfitWear.bind(null, outfit.id)}
             remove={removeOutfitWear.bind(null, outfit.id)}
+            compliment={addCompliment}
           >
             <WoreItWith
               pieces={items.map((item) => ({

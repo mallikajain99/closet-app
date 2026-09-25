@@ -102,3 +102,32 @@ export async function removeItemWear(itemId: string, wearLogId: string): Promise
   revalidatePath(`/catalog/${itemId}`);
   return { ok: true };
 }
+
+/**
+ * Note a compliment on a day's outfit.
+ *
+ * One tap, no dialog, no date picker — the whole value is that it costs nothing in the
+ * moment someone says something. `delta` rather than a set, so a second compliment on
+ * the same day is a second tap and a mistap is undone by the same control.
+ *
+ * Never goes below zero: an "undo" pressed once too often should stop at nothing,
+ * not start counting backwards.
+ */
+export async function addCompliment(
+  wearLogId: string,
+  delta: number,
+): Promise<{ ok: boolean; compliments: number }> {
+  const user = await requireUser();
+
+  const wear = await db.wearLog.findFirst({
+    where: { id: wearLogId, userId: user.id },
+    select: { id: true, compliments: true },
+  });
+  if (!wear) return { ok: false, compliments: 0 };
+
+  const compliments = Math.max(0, wear.compliments + delta);
+  await db.wearLog.update({ where: { id: wear.id }, data: { compliments } });
+
+  revalidatePath("/", "layout");
+  return { ok: true, compliments };
+}

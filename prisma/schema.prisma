@@ -333,6 +333,17 @@ model WearLog {
 
   note String?
 
+  /// How many compliments this day's outfit drew.
+  ///
+  /// Counted on the wear rather than the outfit, which is the only place that keeps
+  /// all three answers. A compliment happens on a *day*: recording it here gives the
+  /// outfit's total by summing its wears, gives every garment worn that day its own
+  /// total through `WearLogItem` — including one added by hand that isn't part of the
+  /// saved outfit — and keeps the date, so "what got complimented last spring" stays
+  /// answerable. A counter on the outfit would lose the date and could never attribute
+  /// anything to an item.
+  compliments Int @default(0)
+
   // Optional OOTD photo (spec §3, §6 approach A) — runs through the same pipeline as items.
   ootdOriginalImageKey  String?
   ootdProcessedImageKey String?

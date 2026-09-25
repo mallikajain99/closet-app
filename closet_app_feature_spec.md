@@ -222,6 +222,14 @@ Clicking any single item (e.g., a specific top) in the catalog opens a detail pa
     only**, and the outfit's own definition is untouched. Crucially the additions are
     real wears: a coat added this way gets its own wear count and last-worn date, the
     same as if it had been logged on its own
+  - **Compliments are counted on the wear, one tap.** A compliment happens on a *day*,
+    and recording it there is the only place that keeps all three answers: the outfit's
+    total is the sum of its wears, every garment worn that day gets its own total —
+    including one added by hand that isn't part of the saved outfit — and the date
+    survives, so "what got complimented last spring" stays answerable. A counter on the
+    outfit would lose the date and could never attribute anything to an item. It is a
+    single tap with no dialog, because the whole value is that it costs nothing in the
+    moment someone says something; tapped again for a second compliment the same day
   - **Planning ahead: a forward-dated entry is a plan, not a wear.** Deciding on
     Sunday what to wear on Friday is the other half of what a calendar is for, so a
     future date is accepted by the same form that logs the past — the row that says "I'm

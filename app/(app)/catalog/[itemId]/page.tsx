@@ -7,7 +7,7 @@ import {
   keepOriginalImage,
   reprocessItem,
 } from "@/app/(app)/catalog/actions";
-import { logItemWear, removeItemWear } from "@/app/(app)/wears/actions";
+import { addCompliment, logItemWear, removeItemWear } from "@/app/(app)/wears/actions";
 import { DeleteItemButton } from "@/components/catalog/delete-item-button";
 import { ImageControls } from "@/components/catalog/image-controls";
 import { LogWear } from "@/components/wears/log-wear";
@@ -50,7 +50,7 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
       where: { userId: user.id, items: { some: { itemId: item.id } } },
       orderBy: { wornOn: "desc" },
       take: 8,
-      select: { id: true, wornOn: true },
+      select: { id: true, wornOn: true, compliments: true },
     }),
   ]);
 
@@ -65,6 +65,14 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
   const lastWorn = wears.find((wear) => hasHappened(wear.wornOn))?.wornOn ?? null;
 
   const wearCount = item._count.wearLogItems;
+
+  // Compliments on any day this garment was worn — including days it was added by
+  // hand to someone else's outfit, since those write `WearLogItem` rows too.
+  const complimented = await db.wearLog.aggregate({
+    where: { userId: user.id, items: { some: { itemId: item.id } } },
+    _sum: { compliments: true },
+  });
+  const compliments = complimented._sum.compliments ?? 0;
   const cpw = costPerWearCents(item.priceCents, wearCount);
   const attributes = (item.attributes ?? {}) as Record<string, string>;
 
@@ -158,6 +166,12 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
                 <p className="mt-1 text-meta text-ink-subtle">No price recorded</p>
               )}
             </div>
+            {compliments > 0 && (
+              <div>
+                <dt className="label text-ink-subtle">Compliments</dt>
+                <dd className="mt-1 text-3xl font-light tabular-nums">♥ {compliments}</dd>
+              </div>
+            )}
           </dl>
 
           {item.tags.length > 0 && (
@@ -200,9 +214,11 @@ export default async function ItemDetailPage(props: PageProps<"/catalog/[itemId]
               wornOn: wear.wornOn.toISOString().slice(0, 10),
               label: dateLabel(wear.wornOn),
               planned: !hasHappened(wear.wornOn),
+              compliments: wear.compliments,
             }))}
             action={logItemWear.bind(null, item.id)}
             remove={removeItemWear.bind(null, item.id)}
+            compliment={addCompliment}
           />
 
           <div className="mt-10 flex items-center gap-6 border-t border-line pt-6">

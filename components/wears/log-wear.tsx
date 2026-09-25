@@ -11,6 +11,7 @@ export type RecentWear = {
   label: string;
   /** Dated ahead of today: a plan, which counts towards nothing until the day comes. */
   planned?: boolean;
+  compliments?: number;
 };
 
 /**
@@ -30,18 +31,21 @@ export function LogWear({
   recent,
   action,
   remove,
+  compliment,
   children,
 }: {
   today: string;
   recent: RecentWear[];
   action: (prev: WearResult | null, formData: FormData) => Promise<WearResult>;
   remove: (wearLogId: string) => Promise<WearResult>;
+  compliment: (wearLogId: string, delta: number) => Promise<{ ok: boolean }>;
   /** Extra fields inside the form — the outfit page passes "wore it with". */
   children?: React.ReactNode;
 }) {
   const router = useRouter();
   const [result, formAction, pending] = useActionState(action, null);
   const [removing, startRemoving] = useTransition();
+  const [complimenting, startComplimenting] = useTransition();
   const [wornOn, setWornOn] = useState(today);
 
   /**
@@ -106,6 +110,44 @@ export function LogWear({
             <li key={wear.id} className="flex items-center gap-3 text-meta text-ink-muted">
               <span className="tabular-nums">{wear.label}</span>
               {wear.planned && <span className="label text-ink-subtle">Planned</span>}
+
+              {/* One tap. The whole value of this is that it costs nothing in the
+                  moment someone says something — a dialog would mean it never gets
+                  used. Tapped again for a second compliment on the same day. */}
+              {!wear.planned && (
+                <span className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={complimenting}
+                    onClick={() =>
+                      startComplimenting(async () => {
+                        await compliment(wear.id, 1);
+                        router.refresh();
+                      })
+                    }
+                    title="Someone complimented this"
+                    className="transition-colors hover:text-ink disabled:opacity-50"
+                  >
+                    ♥ {wear.compliments ?? 0}
+                  </button>
+                  {(wear.compliments ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      disabled={complimenting}
+                      onClick={() =>
+                        startComplimenting(async () => {
+                          await compliment(wear.id, -1);
+                          router.refresh();
+                        })
+                      }
+                      title="Undo"
+                      className="label text-ink-subtle transition-colors hover:text-ink disabled:opacity-50"
+                    >
+                      −
+                    </button>
+                  )}
+                </span>
+              )}
               <button
                 type="button"
                 disabled={removing}
