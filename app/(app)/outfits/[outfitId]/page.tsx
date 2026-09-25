@@ -20,6 +20,7 @@ import { costPerWearCents, formatCents, outfitCostPerWear } from "@/lib/stats/co
 import { CATEGORY_SLOT } from "@/lib/outfits/slots";
 import { readSilhouette } from "@/lib/validation/item";
 import { setAsideLabel } from "@/lib/outfits/set-aside";
+import { suggestedExtras } from "@/lib/wears/extras";
 import { happened, hasHappened } from "@/lib/wears/planned";
 import { tagVocabulary } from "@/lib/tags/vocabulary";
 import { addCompliment } from "@/app/(app)/wears/actions";
@@ -86,8 +87,10 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
     _sum: { compliments: true },
   });
   const compliments = complimented._sum.compliments ?? 0;
-  // Everything not already in the outfit, for "also wore". Names only — the picker
-  // is a search box, so signing 190 thumbnails to show eight would be waste.
+  // Everything not already in the outfit, for "also wore" — with thumbnails, since
+  // picking a garment by name alone is guesswork. Signing them is one batched round
+  // trip however many there are, which is what made the earlier name-only version
+  // unnecessary caution rather than a saving.
   const closet = await db.item.findMany({
     where: {
       userId: user.id,
@@ -95,8 +98,18 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
       id: { notIn: items.map((item) => item.id) },
     },
     orderBy: { name: "asc" },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      originalImageKey: true,
+      processedImageKey: true,
+      thumbnailKey: true,
+    },
   });
+
+  const closetUrls = await getItemImageUrls(closet, "thumbnail");
+  const suggestedIds = await suggestedExtras(user.id, items.map((item) => item.id));
+  const byId = new Map(closet.map((item) => [item.id, item]));
   // Outfit photos live in the originals bucket: they are photographs of a person, not
   // garment cutouts, so nothing processes them.
   const photoUrls = await getSignedImageUrls(outfit.photos.map((photo) => photo.imageKey));
@@ -206,8 +219,16 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
               extras={closet.map((item) => ({
                 id: item.id,
                 name: item.name,
-                imageUrl: null,
+                imageUrl: closetUrls.get(item.id) ?? null,
               }))}
+              suggested={suggestedIds
+                .map((id) => byId.get(id))
+                .filter((item) => item !== undefined)
+                .map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  imageUrl: closetUrls.get(item.id) ?? null,
+                }))}
             />
           </LogWear>
 

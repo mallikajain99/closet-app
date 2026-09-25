@@ -21,11 +21,14 @@ export type SwappablePiece = { id: string; name: string; imageUrl: string | null
 export function WoreItWith({
   pieces,
   extras,
+  suggested,
 }: {
   /** The outfit's own pieces, each of which can be dropped for this day. */
   pieces: SwappablePiece[];
   /** Everything else in the closet, to add for this day. */
   extras: SwappablePiece[];
+  /** What she usually throws over an outfit, learned from her own logs. */
+  suggested: SwappablePiece[];
 }) {
   const [open, setOpen] = useState(false);
   const [dropped, setDropped] = useState<string[]>([]);
@@ -101,18 +104,48 @@ export function WoreItWith({
 
           <p className="label mt-4 text-ink-subtle">Also wore</p>
 
-          {added.length > 0 && (
+          {/* Offered before the search box, because the answer is usually one of
+              these: the same coat goes over most things, and typing its name every
+              time is the friction that stops a log being kept. Learned from what she
+              has actually added before, not assumed. */}
+          {suggested.length > 0 && (
             <ul className="mt-2 flex flex-wrap gap-2">
-              {added.map((id) => {
-                const item = extras.find((candidate) => candidate.id === id);
+              {suggested.map((item) => {
+                const on = added.includes(item.id);
                 return (
-                  <li key={id}>
+                  <li key={item.id}>
                     <button
                       type="button"
-                      onClick={() => setAdded(added.filter((other) => other !== id))}
-                      className="label border border-ink px-3 py-1.5 text-ink"
+                      onClick={() =>
+                        setAdded(
+                          on
+                            ? added.filter((other) => other !== item.id)
+                            : [...added, item.id],
+                        )
+                      }
+                      aria-pressed={on}
+                      title={item.name}
+                      className={`flex w-20 flex-col items-center gap-1 border p-1 transition-colors ${
+                        on
+                          ? "border-ink bg-surface"
+                          : "border-line hover:border-line-strong"
+                      }`}
                     >
-                      {item?.name ?? "Item"} <span aria-hidden="true">×</span>
+                      <span className="relative h-16 w-full bg-surface-sunken">
+                        {item.imageUrl && (
+                          <Image
+                            src={item.imageUrl}
+                            alt=""
+                            fill
+                            unoptimized
+                            sizes="80px"
+                            className="object-contain"
+                          />
+                        )}
+                      </span>
+                      <span className="w-full truncate text-center text-meta text-ink-muted">
+                        {item.name}
+                      </span>
                     </button>
                   </li>
                 );
@@ -120,11 +153,33 @@ export function WoreItWith({
             </ul>
           )}
 
+          {/* Anything added that wasn't one of the suggestions, so it can be removed. */}
+          {added.filter((id) => !suggested.some((item) => item.id === id)).length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {added
+                .filter((id) => !suggested.some((item) => item.id === id))
+                .map((id) => {
+                  const item = extras.find((candidate) => candidate.id === id);
+                  return (
+                    <li key={id}>
+                      <button
+                        type="button"
+                        onClick={() => setAdded(added.filter((other) => other !== id))}
+                        className="label border border-ink px-3 py-1.5 text-ink"
+                      >
+                        {item?.name ?? "Item"} <span aria-hidden="true">×</span>
+                      </button>
+                    </li>
+                  );
+                })}
+            </ul>
+          )}
+
           <input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search your closet — a coat, other shoes…"
+            placeholder="Or search your closet…"
             aria-label="Find something else you wore"
             className="mt-2 w-full border border-line-strong bg-surface px-3 py-2 text-meta text-ink focus:border-ink focus:outline-none"
           />
