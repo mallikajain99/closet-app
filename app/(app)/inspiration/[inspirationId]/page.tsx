@@ -6,11 +6,12 @@ import {
   analyseInspiration,
   deleteInspiration,
 } from "@/app/(app)/inspiration/actions";
+import { Assembled } from "@/components/inspiration/assembled";
 import { PieceRow } from "@/components/inspiration/piece-row";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getSignedImageUrl } from "@/lib/images/storage";
-import { CATEGORY_LABELS } from "@/lib/validation/item";
+import { getItemImageUrls, getSignedImageUrl } from "@/lib/images/storage";
+import { CATEGORY_LABELS, readSilhouette } from "@/lib/validation/item";
 
 export const metadata = { title: "Inspiration" };
 
@@ -41,7 +42,20 @@ export default async function InspirationDetailPage(
           match: true,
           boughtAt: true,
           matchedItemId: true,
-          matchedItem: { select: { name: true } },
+          matchedItem: {
+            select: {
+              id: true,
+              name: true,
+              category: true,
+              subcategory: true,
+              attributes: true,
+              renderHeight: true,
+              renderWidth: true,
+              originalImageKey: true,
+              processedImageKey: true,
+              thumbnailKey: true,
+            },
+          },
         },
       },
     },
@@ -53,6 +67,36 @@ export default async function InspirationDetailPage(
   const missing = inspiration.pieces.filter(
     (piece) => piece.match === "MISSING" && !piece.boughtAt,
   );
+
+  // Matched garments, for the thumbnails and the assembled figure. One signing round
+  // trip covers both.
+  const matched = inspiration.pieces
+    .map((piece) => piece.matchedItem)
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+  const matchedUrls = await getItemImageUrls(matched, "thumbnail");
+
+  // CLOSE counts towards the figure: it is the same garment in another colour, which
+  // is close enough to see whether the outfit works before deciding to buy anything.
+  const owned = inspiration.pieces
+    .filter((piece) => piece.match !== "MISSING" && piece.matchedItem)
+    .map((piece) => ({
+      id: piece.matchedItem!.id,
+      name: piece.matchedItem!.name,
+      category: piece.matchedItem!.category,
+      subcategory: piece.matchedItem!.subcategory,
+      silhouette: readSilhouette(piece.matchedItem!.attributes),
+      renderHeight: piece.matchedItem!.renderHeight,
+      renderWidth: piece.matchedItem!.renderWidth,
+      imageUrl: matchedUrls.get(piece.matchedItem!.id) ?? null,
+    }));
+
+  const gaps = inspiration.pieces
+    .filter((piece) => piece.match === "MISSING")
+    .map((piece) => ({
+      description: piece.description,
+      category: piece.category,
+      bought: piece.boughtAt !== null,
+    }));
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-12">
@@ -129,7 +173,9 @@ export default async function InspirationDetailPage(
                 </form>
               </div>
 
-              <p className="mt-2 text-meta leading-relaxed text-ink-muted">
+              <Assembled owned={owned} gaps={gaps} />
+
+              <p className="mt-8 text-meta leading-relaxed text-ink-muted">
                 Every verdict is a guess you can correct. Correcting one also keeps it
                 from being overwritten if this is read again.
               </p>
@@ -145,6 +191,9 @@ export default async function InspirationDetailPage(
                       match: piece.match,
                       matchedItemId: piece.matchedItemId,
                       matchedItemName: piece.matchedItem?.name ?? null,
+                      matchedItemUrl: piece.matchedItem
+                        ? (matchedUrls.get(piece.matchedItem.id) ?? null)
+                        : null,
                       bought: piece.boughtAt !== null,
                     }}
                   />

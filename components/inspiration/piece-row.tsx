@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
@@ -12,6 +14,8 @@ export type PieceView = {
   match: "MISSING" | "CLOSE" | "OWNED";
   matchedItemId: string | null;
   matchedItemName: string | null;
+  /** The matched garment, so a claim that you own something can be checked by eye. */
+  matchedItemUrl: string | null;
   bought: boolean;
 };
 
@@ -41,15 +45,37 @@ export function PieceRow({ piece }: { piece: PieceView }) {
 
   return (
     <li className="border-b border-line py-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <div className="min-w-0">
-          <p className={`text-ink ${piece.bought ? "line-through opacity-60" : ""}`}>
-            {piece.description}
-          </p>
-          <p className="text-meta text-ink-subtle">
-            {piece.categoryLabel}
-            {piece.matchedItemName && ` · ${piece.matchedItemName}`}
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <div className="flex min-w-0 items-center gap-3">
+          {/* The matched garment, shown rather than named. "You have this" is a claim
+              the user can only check by looking at it. */}
+          {piece.matchedItemId && (
+            <Link
+              href={`/catalog/${piece.matchedItemId}`}
+              className="relative size-14 shrink-0 bg-surface-sunken transition-opacity hover:opacity-80"
+            >
+              {piece.matchedItemUrl && (
+                <Image
+                  src={piece.matchedItemUrl}
+                  alt={piece.matchedItemName ?? ""}
+                  fill
+                  unoptimized
+                  sizes="56px"
+                  className="object-contain"
+                />
+              )}
+            </Link>
+          )}
+
+          <div className="min-w-0">
+            <p className={`text-ink ${piece.bought ? "line-through opacity-60" : ""}`}>
+              {piece.description}
+            </p>
+            <p className="truncate text-meta text-ink-subtle">
+              {piece.categoryLabel}
+              {piece.matchedItemName && ` · ${piece.matchedItemName}`}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
