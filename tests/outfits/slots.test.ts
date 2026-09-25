@@ -11,6 +11,7 @@ import {
   byPaintOrder,
   composeOutfit,
   layoutFor,
+  outerness,
 } from "@/lib/outfits/slots";
 
 
@@ -307,13 +308,16 @@ describe("a top worn over a dress", () => {
     expect(dress.slot).not.toBe(top.slot);
   });
 
-  it("paints the top over the dress, and the dress over its outerwear", () => {
+  it("orders outerwear, then the top over it, then the dress under both", () => {
+    // Outer to inner, which in this flat lay means back to front and left to right.
+    // A dress is the innermost thing here — anything worn with one goes over it — so
+    // it comes last, not in the middle where the category order used to put it.
     const order = byPaintOrder([
       { category: "TOP" as Category },
       { category: "OUTERWEAR" as Category },
       { category: "DRESS" as Category },
     ]).map((item) => item.category);
-    expect(order).toEqual(["OUTERWEAR", "DRESS", "TOP"]);
+    expect(order).toEqual(["OUTERWEAR", "TOP", "DRESS"]);
   });
 
   it("spreads three layers across the frame with the middle one centred", () => {
@@ -324,8 +328,8 @@ describe("a top worn over a dress", () => {
     ]);
     const at = (category: Category) => placed.find((p) => p.item.category === category)!.offsetX;
     expect(at("OUTERWEAR")).toBeLessThan(0);
-    expect(at("DRESS")).toBeCloseTo(0, 5);
-    expect(at("TOP")).toBeGreaterThan(0);
+    expect(at("TOP")).toBeCloseTo(0, 5);
+    expect(at("DRESS")).toBeGreaterThan(0);
   });
 
   it("never rescales a dress to match a shoulder", () => {
@@ -428,5 +432,47 @@ describe("width-targeted categories", () => {
       { category: "BOTTOM" as const, subcategory: "jeans", renderWidth: 700, renderHeight: 1000 },
     ]);
     expect(placed[0].height).toBeCloseTo(CATEGORY_SLOT.BOTTOM.height, 5);
+  });
+});
+
+describe("outerness", () => {
+  const top = (subcategory: string, sleeveLength: string | null = null) => ({
+    category: "TOP" as const,
+    subcategory,
+    sleeveLength,
+  });
+
+  it("ranks garments the way they are worn, outermost first", () => {
+    // The user's own order: coats, then sweaters, then long sleeves, then t-shirts.
+    const ordered = [
+      { category: "OUTERWEAR" as const, subcategory: "coat" },
+      { category: "OUTERWEAR" as const, subcategory: "cardigan" },
+      top("sweater"),
+      top("blouse"),
+      top("top", "long"),
+      top("t-shirt"),
+      top("tank top"),
+    ];
+    const ranks = ordered.map(outerness);
+    for (let i = 1; i < ranks.length; i += 1) {
+      expect(ranks[i]).toBeGreaterThan(ranks[i - 1]);
+    }
+  });
+
+  it("puts a blouse under knitwear and over a tee, where a person would", () => {
+    expect(outerness(top("blouse"))).toBeGreaterThan(outerness(top("sweater")));
+    expect(outerness(top("blouse"))).toBeLessThan(outerness(top("t-shirt")));
+  });
+
+  it("separates two tops by sleeve when their names don't", () => {
+    expect(outerness(top("top", "long"))).toBeLessThan(outerness(top("top", "sleeveless")));
+  });
+
+  it("lays two tops out in the order they are worn, not the order they were picked", () => {
+    // Picked tee first, sweater second; the sweater still goes on the left.
+    const { placed } = composeOutfit([top("t-shirt", "short"), top("sweater", "long")]);
+    const at = (subcategory: string) =>
+      placed.find((p) => p.item.subcategory === subcategory)!.offsetX;
+    expect(at("sweater")).toBeLessThan(at("t-shirt"));
   });
 });

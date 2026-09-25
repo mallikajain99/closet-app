@@ -196,6 +196,8 @@ export type LayoutSubject = {
   subcategory?: string | null;
   name?: string | null;
   silhouette?: readonly string[];
+  /** Separates a long-sleeve top from a sleeveless one when the name doesn't. */
+  sleeveLength?: string | null;
   /**
    * Measured size of the garment inside its 1024px render.
    *
@@ -228,9 +230,30 @@ export function layoutFor(subject: LayoutSubject): { height: number; top: number
   return { height, top };
 }
 
-/** Paint order for a set of chosen categories, back to front. */
-export function byPaintOrder<T extends { category: Category }>(items: readonly T[]): T[] {
-  return [...items].sort((a, b) => CATEGORY_SLOT[a.category].z - CATEGORY_SLOT[b.category].z);
+/**
+ * Paint order, back to front.
+ *
+ * Shoulder-hung garments are ordered among themselves by how far out they are worn,
+ * so paint order and left-to-right order come from the same number and cannot
+ * disagree: the outermost garment is leftmost *and* furthest back, which is the
+ * flat-lay convention the rest of this follows.
+ *
+ * Their band sits between the waistband and the shoes, so every upper layer still
+ * paints over trousers and under footwear however they are ordered internally.
+ */
+const LAYER_Z_BASE = 30;
+const LAYER_Z_SPAN = 14;
+
+export function paintDepth(subject: LayoutSubject): number {
+  if (!LAYERED_CATEGORIES.includes(subject.category)) {
+    return CATEGORY_SLOT[subject.category].z;
+  }
+  // Ranks run 10–80; map them into the band without letting rounding collapse two.
+  return LAYER_Z_BASE + (outerness(subject) / 80) * LAYER_Z_SPAN;
+}
+
+export function byPaintOrder<T extends LayoutSubject>(items: readonly T[]): T[] {
+  return [...items].sort((a, b) => paintDepth(a) - paintDepth(b));
 }
 
 
@@ -336,6 +359,59 @@ const LAYER_SPREAD = 0.13;
  */
 const LAYERED_CATEGORIES: Category[] = ["OUTERWEAR", "DRESS", "TOP"];
 
+/**
+ * How far out a garment is worn, low to high: a coat is the outermost thing on a
+ * person, a dress the innermost.
+ *
+ * Categories are too coarse for this. Two TOPs — a sweater and a t-shirt — are the
+ * same category and are not interchangeable in a layered look, so ordering by category
+ * left them in whatever order they happened to be picked in.
+ *
+ * Matched against subcategory, name and silhouette like the length overrides, most
+ * specific first. Blouses and shirts sit between knitwear and plain jersey: a blouse
+ * goes *under* a sweater and *over* a tee, which is also where a person would put it.
+ */
+const OUTERNESS: Array<{ match: RegExp; rank: number }> = [
+  { match: /\b(coat|puffer|parka|trench)\b/i, rank: 10 },
+  { match: /\b(blazer|jacket|bomber)\b/i, rank: 20 },
+  { match: /\b(vest|waistcoat|overshirt|shacket)\b/i, rank: 25 },
+  { match: /\bcardigan\b/i, rank: 30 },
+  { match: /\b(sweater|knitwear|jumper|hoodie|sweatshirt|fleece|knit)\b/i, rank: 40 },
+  // Before the shirt rule: a hyphen is a word boundary, so `\bshirt\b` matches inside
+  // "t-shirt" and every tee was being ranked as a shirt.
+  { match: /\b(t-shirt|tee)\b/i, rank: 60 },
+  { match: /\b(shirt|blouse)\b/i, rank: 50 },
+  { match: /\b(bodysuit|turtleneck)\b/i, rank: 55 },
+  { match: /\b(tank|camisole|halter|crop top)\b/i, rank: 70 },
+];
+
+/** Fallbacks when nothing matches: the category's own place in the order. */
+const CATEGORY_OUTERNESS: Partial<Record<Category, number>> = {
+  OUTERWEAR: 20,
+  TOP: 55,
+  // A dress is the base everything else goes over, so it is the innermost thing here.
+  DRESS: 80,
+};
+
+export function outerness(subject: LayoutSubject): number {
+  const text = [subject.subcategory, subject.name, ...(subject.silhouette ?? [])]
+    .filter(Boolean)
+    .join(" ");
+
+  const matched = OUTERNESS.find((rule) => rule.match.test(text));
+  if (matched) return matched.rank;
+
+  // Sleeves separate a long-sleeve top from a sleeveless one when nothing else does.
+  if (subject.category === "TOP" && subject.sleeveLength) {
+    const sleeves = subject.sleeveLength.toLowerCase();
+    if (sleeves === "long" || sleeves === "three-quarter") return 55;
+    if (sleeves === "sleeveless") return 70;
+    return 60;
+  }
+
+  return CATEGORY_OUTERNESS[subject.category] ?? 55;
+}
+
 export type PlacedGarment<T> = {
   item: T;
   top: number;
@@ -376,13 +452,12 @@ export function composeOutfit<T extends LayoutSubject>(
   // lone top belongs on the centre line. Laid out back to front, left to right, so the
   // piece in front sits rightmost the way a flat lay is arranged. Three layers (a
   // cardigan, a dress and a top over it) put the middle one on the centre line.
-  // Every shoulder-hung garment, in paint order back to front, not one per category:
-  // layering two sweaters is as ordinary as layering a sweater under a cardigan.
+  // Every shoulder-hung garment, outermost first: a coat, then a cardigan, then a
+  // sweater, then a shirt, then a tee. Sorting by *category* put two tops in whatever
+  // order they were picked, which is no order at all.
   const layered = spans
     .filter((span) => LAYERED_CATEGORIES.includes(span.item.category))
-    .sort(
-      (a, b) => CATEGORY_SLOT[a.item.category].z - CATEGORY_SLOT[b.item.category].z,
-    );
+    .sort((a, b) => outerness(a.item) - outerness(b.item));
 
   if (layered.length > 1) {
     const step = (LAYER_SPREAD * 2) / (layered.length - 1);

@@ -74,6 +74,7 @@ export default async function Home(props: PageProps<"/">) {
       id: true,
       wornOn: true,
       outfitId: true,
+      compliments: true,
       items: itemFields,
       // Same three views as the month grid — see `itemsToShow`.
       outfitVersion: { select: { items: itemFields } },
@@ -97,6 +98,11 @@ export default async function Home(props: PageProps<"/">) {
 
   // Every wear on a day, not the last one — two outfits in a day used to silently
   // drop the first here, where the calendar at least merged them.
+  // Only what has actually happened: a plan cannot have drawn a compliment yet.
+  const complimentsThisWeek = wears
+    .filter((wear) => hasHappened(wear.wornOn))
+    .reduce((total, wear) => total + wear.compliments, 0);
+
   const byDay = new Map<string, typeof wears>();
   for (const wear of wears) {
     const key = isoOf(wear.wornOn);
@@ -263,8 +269,16 @@ export default async function Home(props: PageProps<"/">) {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-12">
-      <div className="flex items-baseline justify-between gap-4">
-        <h1 className="text-3xl font-light tracking-tight">This week</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-light tracking-tight">This week</h1>
+          {complimentsThisWeek > 0 && (
+            <p className="mt-1 text-meta text-ink-muted">
+              ♥ {complimentsThisWeek}{" "}
+              {complimentsThisWeek === 1 ? "compliment" : "compliments"} so far
+            </p>
+          )}
+        </div>
         <Link href="/calendar" className="label text-ink-subtle hover:text-ink">
           Full calendar →
         </Link>
