@@ -62,31 +62,37 @@ export function LogWear({
     <div className="mt-8 border-t border-line pt-6">
       <p className="label text-ink-subtle">Wear log</p>
 
-      <form action={formAction} className="mt-3 flex flex-wrap items-center gap-3">
-        <input
-          type="date"
-          name="wornOn"
-          value={wornOn}
-          onChange={(event) => setWornOn(event.target.value)}
-          aria-label="Date worn"
-          className="border border-line-strong bg-surface px-3 py-2 text-meta text-ink focus:border-ink focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={pending}
-          className="label bg-ink px-5 py-2.5 text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {pending
-            ? "Saving…"
-            : wornOn === today
-              ? "Worn today"
-              : wornOn > today
-                ? "Plan this outfit"
-                : "Add this wear"}
-        </button>
-      </form>
+      {/* One form, with the extras inside it.
+          `children` used to render after `</form>`, which meant the hidden inputs
+          "wore it with" contributes were not part of the submission at all — adding a
+          coat looked like it worked and recorded nothing. */}
+      <form action={formAction} className="mt-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="date"
+            name="wornOn"
+            value={wornOn}
+            onChange={(event) => setWornOn(event.target.value)}
+            aria-label="Date worn"
+            className="border border-line-strong bg-surface px-3 py-2 text-meta text-ink focus:border-ink focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={pending}
+            className="label bg-ink px-5 py-2.5 text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {pending
+              ? "Saving…"
+              : wornOn === today
+                ? "Worn today"
+                : wornOn > today
+                  ? "Plan this outfit"
+                  : "Add this wear"}
+          </button>
+        </div>
 
-      {children}
+        {children}
+      </form>
 
       {result?.ok === false && (
         <p role="alert" className="mt-2 text-meta text-signal-danger">
