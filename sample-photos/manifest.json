@@ -1,0 +1,584 @@
+[
+  {
+    "file": "top-black-v-neck-ribbed-bodysuit.jpg",
+    "name": "Black V-neck ribbed bodysuit",
+    "category": "TOP",
+    "subcategory": "bodysuit",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "ribbed",
+    "material": "ribbed cotton",
+    "formality": "smart",
+    "silhouette": [
+      "fitted"
+    ],
+    "sleeveLength": "long",
+    "priceEstimated": true
+  },
+  {
+    "file": "top-blue-striped-popover-shirt.jpg",
+    "name": "Blue striped popover shirt",
+    "category": "TOP",
+    "subcategory": "shirt",
+    "colors": [
+      "blue",
+      "white"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "pattern": "striped",
+    "material": "cotton",
+    "formality": "smart",
+    "silhouette": [
+      "boxy",
+      "cropped"
+    ],
+    "sleeveLength": "long",
+    "priceEstimated": true
+  },
+  {
+    "file": "top-blush-ribbed-cropped-tank.jpg",
+    "name": "Blush ribbed cropped tank",
+    "category": "TOP",
+    "subcategory": "tank top",
+    "colors": [
+      "white"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "ribbed",
+    "material": "ribbed cotton",
+    "formality": "casual",
+    "silhouette": [
+      "cropped",
+      "relaxed"
+    ],
+    "sleeveLength": "sleeveless",
+    "priceEstimated": true,
+    "tagNames": [
+      "Casual"
+    ]
+  },
+  {
+    "file": "top-espresso-crewneck-sweater.jpg",
+    "name": "Espresso crewneck sweater",
+    "category": "TOP",
+    "subcategory": "sweater",
+    "colors": [
+      "espresso"
+    ],
+    "seasons": [
+      "SPRING",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "knit",
+    "formality": "casual",
+    "silhouette": [
+      "relaxed"
+    ],
+    "sleeveLength": "long",
+    "priceEstimated": true
+  },
+  {
+    "file": "top-periwinkle-blue-ribbed-crewneck-sweater.jpg",
+    "name": "Periwinkle blue ribbed crewneck sweater",
+    "category": "TOP",
+    "subcategory": "sweater",
+    "colors": [
+      "periwinkle blue"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER",
+      "SPRING"
+    ],
+    "pattern": "solid",
+    "material": "ribbed knit",
+    "formality": "casual",
+    "silhouette": [
+      "relaxed"
+    ],
+    "sleeveLength": "long",
+    "priceEstimated": true
+  },
+  {
+    "file": "top-slate-blue-cropped-cable-knit-sweater.jpg",
+    "name": "Slate blue cropped cable-knit sweater",
+    "category": "TOP",
+    "subcategory": "sweater",
+    "colors": [
+      "slate blue"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER",
+      "SPRING"
+    ],
+    "pattern": "cable knit",
+    "material": "cotton",
+    "formality": "casual",
+    "silhouette": [
+      "cropped"
+    ],
+    "sleeveLength": "long",
+    "priceEstimated": true
+  },
+  {
+    "file": "top-white-crew-neck-t-shirt.jpg",
+    "name": "White crew-neck T-shirt",
+    "category": "TOP",
+    "subcategory": "t-shirt",
+    "colors": [
+      "white"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "cotton",
+    "formality": "casual",
+    "silhouette": [
+      "relaxed"
+    ],
+    "sleeveLength": "short",
+    "priceEstimated": true
+  },
+  {
+    "file": "bottom-black-flowy-mini-skirt.jpg",
+    "name": "Black flowy mini skirt",
+    "category": "BOTTOM",
+    "subcategory": "skirt",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "pattern": "solid",
+    "material": "woven",
+    "formality": "smart",
+    "silhouette": [
+      "flowy"
+    ]
+  },
+  {
+    "file": "bottom-madewell-black-straight-leg-jeans.jpg",
+    "name": "madewell black straight-leg jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "denim",
+    "formality": "casual",
+    "silhouette": [
+      "straight"
+    ]
+  },
+  {
+    "file": "bottom-mid-wash-straight-jeans.jpg",
+    "name": "Mid-wash straight jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "mid-wash blue"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "denim",
+    "formality": "casual",
+    "silhouette": [
+      "straight"
+    ],
+    "priceEstimated": true
+  },
+  {
+    "file": "bottom-mid-wash-wide-leg-jeans.jpg",
+    "name": "Mid-wash wide-leg jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "mid-wash blue"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "denim",
+    "formality": "casual",
+    "silhouette": [
+      "wide-leg"
+    ],
+    "priceEstimated": true
+  },
+  {
+    "file": "bottom-washed-black-straight-leg-jeans.jpg",
+    "name": "Washed black straight-leg jeans",
+    "category": "BOTTOM",
+    "subcategory": "jeans",
+    "colors": [
+      "washed black"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "denim",
+    "formality": "casual",
+    "silhouette": [
+      "straight"
+    ],
+    "priceEstimated": true
+  },
+  {
+    "file": "dress-dark-brown-mock-neck-knit-shift-dress.jpg",
+    "name": "Dark brown mock-neck knit shift dress",
+    "category": "DRESS",
+    "subcategory": "sweater dress",
+    "colors": [
+      "dark brown"
+    ],
+    "seasons": [
+      "SPRING",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "heathered",
+    "material": "wool blend",
+    "formality": "smart",
+    "silhouette": [
+      "straight"
+    ],
+    "sleeveLength": "short",
+    "priceEstimated": true
+  },
+  {
+    "file": "outerwear-black-leather-blazer.jpg",
+    "name": "Black leather blazer",
+    "category": "OUTERWEAR",
+    "subcategory": "blazer",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "FALL",
+      "SPRING"
+    ],
+    "pattern": "solid",
+    "material": "leather",
+    "formality": "smart",
+    "silhouette": [
+      "tailored",
+      "relaxed"
+    ],
+    "sleeveLength": "long",
+    "priceEstimated": true
+  },
+  {
+    "file": "outerwear-black-linen-oversized-shirt.jpg",
+    "name": "Black linen oversized shirt",
+    "category": "OUTERWEAR",
+    "subcategory": "shirt",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER"
+    ],
+    "pattern": "solid",
+    "material": "linen",
+    "formality": "casual",
+    "silhouette": [
+      "oversized"
+    ],
+    "sleeveLength": "long",
+    "priceEstimated": true
+  },
+  {
+    "file": "outerwear-dark-brown-faux-leather-bomber-jacket.jpg",
+    "name": "Dark brown faux leather bomber jacket",
+    "category": "OUTERWEAR",
+    "subcategory": "jacket",
+    "colors": [
+      "dark brown"
+    ],
+    "seasons": [
+      "SPRING",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "leather",
+    "formality": "casual",
+    "silhouette": [
+      "relaxed"
+    ],
+    "sleeveLength": "long"
+  },
+  {
+    "file": "outerwear-forest-green-cropped-cardigan.jpg",
+    "name": "Forest green cropped cardigan",
+    "category": "OUTERWEAR",
+    "subcategory": "cardigan",
+    "colors": [
+      "forest green"
+    ],
+    "seasons": [
+      "SPRING",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "knit",
+    "formality": "casual",
+    "silhouette": [
+      "cropped",
+      "relaxed"
+    ],
+    "sleeveLength": "long",
+    "priceEstimated": true
+  },
+  {
+    "file": "outerwear-rust-corduroy-overshirt.jpg",
+    "name": "Rust corduroy overshirt",
+    "category": "OUTERWEAR",
+    "subcategory": "overshirt",
+    "colors": [
+      "rust"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "corduroy",
+    "formality": "casual",
+    "silhouette": [
+      "oversized"
+    ],
+    "sleeveLength": "long",
+    "priceEstimated": true
+  },
+  {
+    "file": "shoe-black-leather-ankle-boots.jpg",
+    "name": "Black leather ankle boots",
+    "category": "SHOE",
+    "subcategory": "boots",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "leather",
+    "formality": "smart",
+    "tagNames": [
+      "Casual"
+    ]
+  },
+  {
+    "file": "shoe-black-leather-bit-loafers.jpg",
+    "name": "Black leather bit loafers",
+    "category": "SHOE",
+    "subcategory": "loafers",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "leather",
+    "formality": "smart",
+    "priceEstimated": true
+  },
+  {
+    "file": "shoe-black-leather-heeled-ankle-boots.jpg",
+    "name": "Black leather heeled ankle boots",
+    "category": "SHOE",
+    "subcategory": "boots",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "leather",
+    "formality": "smart",
+    "priceEstimated": true
+  },
+  {
+    "file": "shoe-brown-suede-eyelet-mary-janes.jpg",
+    "name": "Brown suede eyelet mary janes",
+    "category": "SHOE",
+    "subcategory": "flats",
+    "colors": [
+      "brown"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "suede",
+    "formality": "smart",
+    "priceEstimated": true
+  },
+  {
+    "file": "shoe-brown-suede-sneakers.jpg",
+    "name": "Brown suede sneakers",
+    "category": "SHOE",
+    "subcategory": "sneakers",
+    "colors": [
+      "brown"
+    ],
+    "seasons": [
+      "SPRING",
+      "FALL"
+    ],
+    "pattern": "solid",
+    "material": "suede",
+    "formality": "casual",
+    "priceEstimated": true
+  },
+  {
+    "file": "shoe-converse-chuck-taylor-all-star-low-tops.jpg",
+    "name": "Converse Chuck Taylor All Star low tops",
+    "category": "SHOE",
+    "subcategory": "sneakers",
+    "colors": [
+      "black",
+      "white"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL"
+    ],
+    "pattern": "solid",
+    "material": "canvas",
+    "formality": "casual",
+    "priceEstimated": true
+  },
+  {
+    "file": "shoe-dark-brown-suede-mary-janes.jpg",
+    "name": "Dark brown suede mary janes",
+    "category": "SHOE",
+    "subcategory": "flats",
+    "colors": [
+      "dark brown"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "suede",
+    "formality": "smart",
+    "priceEstimated": true
+  },
+  {
+    "file": "hat-yankees-sage-green-cap.jpg",
+    "name": "Yankees sage green cap",
+    "category": "HAT",
+    "subcategory": "cap",
+    "colors": [
+      "sage green"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL"
+    ],
+    "pattern": "solid",
+    "material": "cotton",
+    "formality": "casual",
+    "priceEstimated": true
+  },
+  {
+    "file": "bag-black-leather-shoulder-bag.jpg",
+    "name": "Black leather shoulder bag",
+    "category": "BAG",
+    "subcategory": "shoulder bag",
+    "colors": [
+      "black"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "leather",
+    "formality": "smart",
+    "priceEstimated": true
+  },
+  {
+    "file": "accessory-brown-leather-belt-with-silver-buckle.jpg",
+    "name": "Brown leather belt with silver buckle",
+    "category": "ACCESSORY",
+    "subcategory": "belt",
+    "colors": [
+      "brown"
+    ],
+    "seasons": [
+      "SPRING",
+      "SUMMER",
+      "FALL",
+      "WINTER"
+    ],
+    "pattern": "solid",
+    "material": "leather",
+    "formality": "smart"
+  }
+]
