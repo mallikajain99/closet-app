@@ -227,21 +227,24 @@ describe("shoulder matching", () => {
   const widthOf = (p: { item: { renderWidth: number; renderHeight: number }; height: number }) =>
     p.height * (p.item.renderWidth / p.item.renderHeight);
 
-  it("brings a layered top and cardigan to one shoulder width", () => {
-    // Heights come from the landmark table, so drawn width is whatever the photo's
-    // aspect makes it — across the real closet a factor of nearly three. Worn
-    // together, the narrow one looks like it belongs to someone else.
+  it("brings a layered top and cardigan to one visual size", () => {
+    // Matching on *width* was the original rule and it inverted lengths: aspect is
+    // fixed, so width can only be changed by scaling height, and a blazer photographed
+    // wide and short was scaled down until it was shorter than the camisole worn under
+    // it. Area is what "the same size" actually means here.
     const { placed } = composeOutfit([wide, narrow]);
     const top = placed.find((p) => p.item.category === "TOP")!;
     const outer = placed.find((p) => p.item.category === "OUTERWEAR")!;
 
-    const before = widthOf({ item: wide, height: layoutFor(wide).height });
-    const after = widthOf({ item: narrow, height: layoutFor(narrow).height });
+    const areaOf = (span: { item: typeof wide; height: number }) =>
+      widthOf(span) * span.height;
+
+    const before = areaOf({ item: wide, height: layoutFor(wide).height });
+    const after = areaOf({ item: narrow, height: layoutFor(narrow).height });
     expect(before / after).toBeGreaterThan(2); // the mismatch being corrected
 
-    const ratio = widthOf(top as never) / widthOf(outer as never);
-    expect(ratio).toBeGreaterThan(0.9);
-    expect(ratio).toBeLessThan(1.1);
+    const ratio = areaOf(top as never) / areaOf(outer as never);
+    expect(Math.max(ratio, 1 / ratio)).toBeLessThan(1.1);
   });
 
   it("keeps the shoulder line fixed and moves the hem", () => {
@@ -395,16 +398,16 @@ describe("layering more than one of a kind", () => {
     expect(offsets[2]).toBeGreaterThan(0);
   });
 
-  it("matches the shoulders of every layer, not just the first two", () => {
+  it("matches every layer, not just the first two", () => {
     const wide = measured({ renderWidth: 900, renderHeight: 700 });
     const narrow = measured({ renderWidth: 300, renderHeight: 800 });
     const middling = measured({ renderWidth: 600, renderHeight: 750 });
 
     const { placed } = composeOutfit([wide, narrow, middling]);
-    const widths = placed.map(
-      (p) => p.height * (p.item.renderWidth / p.item.renderHeight),
+    const areas = placed.map(
+      (p) => p.height * p.height * (p.item.renderWidth / p.item.renderHeight),
     );
-    expect(Math.max(...widths) / Math.min(...widths)).toBeLessThan(1.2);
+    expect(Math.max(...areas) / Math.min(...areas)).toBeLessThan(1.2);
   });
 
   it("keeps a single top on the centre line", () => {
@@ -450,11 +453,34 @@ describe("width-targeted categories", () => {
     expect(placed[0].height).toBeCloseTo(CATEGORY_SLOT.ACCESSORY.height, 5);
   });
 
-  it("leaves categories without a width target alone", () => {
-    const { placed } = composeOutfit([
-      { category: "BOTTOM" as const, subcategory: "jeans", renderWidth: 700, renderHeight: 1000 },
-    ]);
-    expect(placed[0].height).toBeCloseTo(CATEGORY_SLOT.BOTTOM.height, 5);
+  it("leaves a category with neither a width target nor a width anchor alone", () => {
+    // A dress: no width target, and not pulled toward the hip the way a bottom now is.
+    const dress = {
+      category: "DRESS" as const,
+      subcategory: "shift dress",
+      renderWidth: 600,
+      renderHeight: 1000,
+    };
+    const { placed } = composeOutfit([dress]);
+    expect(placed[0].height).toBeCloseTo(layoutFor(dress).height, 5);
+  });
+
+  it("pulls a bottom toward the canonical hip width", () => {
+    // Superseded "leaves categories without a width target alone". A flowy mini skirt
+    // was drawing 0.386 wide — the widest garment in the closet, wider than wide-leg
+    // jeans — purely because a short flared skirt photographs wide.
+    const flared = {
+      category: "BOTTOM" as const,
+      subcategory: "skirt",
+      name: "Flowy mini skirt",
+      renderWidth: 1000,
+      renderHeight: 700,
+    };
+    const { placed } = composeOutfit([flared]);
+    const natural = drawnWidth(flared, layoutFor(flared).height)!;
+    const drawn = drawnWidth(flared, placed[0].height)!;
+
+    expect(Math.abs(drawn - 0.27)).toBeLessThan(Math.abs(natural - 0.27));
   });
 });
 

@@ -443,6 +443,58 @@ const SHOULDER_MATCH_LIMIT = { min: 0.6, max: 1.8 };
  */
 const CANONICAL_SHOULDER_WIDTH = 0.24;
 
+/**
+ * How wide a bottom should draw across the hip.
+ *
+ * Same problem as the shoulders and the same fix, found by measuring: across 26 bottoms
+ * the drawn width ran 0.155 to 0.386, and the widest garment in the closet was a flowy
+ * mini skirt — wider than wide-leg jeans and wider than straight-leg jeans. Three mini
+ * skirts alone ranged 0.213 to 0.386. None of that is a fact about the clothes; a short
+ * flared skirt photographs wide and a legging photographs narrow, and the height-based
+ * rule turns that straight into drawn width.
+ *
+ * 0.27 is the median of those measurements, so the typical bottom barely moves.
+ *
+ * Unlike shoes this cannot be a plain `widthTarget`, because that back-computes height
+ * from the photograph and would overrule the length rules — a mini and a maxi would stop
+ * differing. Scaling toward the target keeps the length ordering while fixing the width,
+ * at the cost of a little length accuracy, which is the right way round: the complaint
+ * was that a waist did not match the hem of the top above it, never that a skirt was the
+ * wrong length.
+ */
+const CANONICAL_HIP_WIDTH = 0.27;
+
+/**
+ * The space a shoulder-hung garment should occupy, as a fraction of the figure squared.
+ *
+ * The canonical width times a typical top's length. It anchors the group's absolute size
+ * the way CANONICAL_SHOULDER_WIDTH used to, now that the matching works on area.
+ */
+const CANONICAL_TORSO_AREA = CANONICAL_SHOULDER_WIDTH * 0.31;
+
+/**
+ * Pull a bottom toward the canonical hip width.
+ *
+ * There is only ever one bottom, so unlike the shoulders there is nothing to reconcile
+ * it against — the target is the canonical width outright, limited by the same factor so
+ * a genuinely voluminous skirt still reads as voluminous.
+ */
+function matchWaist<T extends LayoutSubject>(
+  spans: Array<{ item: T; top: number; height: number }>,
+): void {
+  for (const span of spans) {
+    if (span.item.category !== "BOTTOM") continue;
+
+    const width = drawnWidth(span.item, span.height);
+    if (!width) continue;
+
+    span.height *= Math.min(
+      SHOULDER_MATCH_LIMIT.max,
+      Math.max(SHOULDER_MATCH_LIMIT.min, CANONICAL_HIP_WIDTH / width),
+    );
+  }
+}
+
 /** The width this garment will actually be drawn at, given the height it is laid out to. */
 export function drawnWidth(subject: LayoutSubject, height: number): number | null {
   if (!subject.renderWidth || !subject.renderHeight) return null;
@@ -473,9 +525,27 @@ function matchShoulders<T extends LayoutSubject>(
   );
   if (layers.length === 0) return;
 
-  const measured = layers.map((span) => drawnWidth(span.item, span.height));
-  if (measured.some((width) => !width)) return;
-  const widths = measured as number[];
+  /**
+   * Matched on *area*, not width.
+   *
+   * Width was the obvious objective and it is the wrong one. Aspect is fixed, so the
+   * only way to change a garment's width is to scale its height — and a blazer is
+   * photographed wide and short while a camisole hangs narrow and tall. Equalising their
+   * widths therefore scaled the blazer down by 40% and the camisole up, until the blazer
+   * was shorter than the top worn underneath it. Correct by the stated rule, absurd on
+   * the figure.
+   *
+   * Area is the better proxy for "these should look the same size", which is the thing
+   * actually being judged. It still cannot make a wide-short blazer as long as a
+   * narrow-tall camisole — nothing aspect-preserving can — but it stops either one
+   * looking like a different scale of garment.
+   */
+  const measured = layers.map((span) => {
+    const width = drawnWidth(span.item, span.height);
+    return width ? width * span.height : null;
+  });
+  if (measured.some((area) => !area)) return;
+  const areas = measured as number[];
 
   // The *geometric* mean, so no garment is treated as the authority — none is more
   // correctly photographed than the others, they are just different shapes. It has to
@@ -487,15 +557,17 @@ function matchShoulders<T extends LayoutSubject>(
   // which is the case that previously did nothing at all. With several it keeps them
   // agreeing with each other while stopping the whole group drifting to whatever size
   // this particular set of photographs implies.
-  const voices = [...widths, CANONICAL_SHOULDER_WIDTH];
+  const voices = [...areas, CANONICAL_TORSO_AREA];
   const target = Math.exp(
-    voices.reduce((sum, width) => sum + Math.log(width), 0) / voices.length,
+    voices.reduce((sum, area) => sum + Math.log(area), 0) / voices.length,
   );
 
   layers.forEach((span, index) => {
+    // Square root because area goes as the square of the scale: halving a garment's
+    // height quarters the space it occupies.
     const scale = Math.min(
       SHOULDER_MATCH_LIMIT.max,
-      Math.max(SHOULDER_MATCH_LIMIT.min, target / widths[index]),
+      Math.max(SHOULDER_MATCH_LIMIT.min, Math.sqrt(target / areas[index])),
     );
     span.height *= scale;
   });
@@ -665,6 +737,7 @@ export function composeOutfit<T extends LayoutSubject>(
   // Before anything measures these heights: gap-closing, the frame, and the box-fit
   // clamp all read them, so resizing afterwards would crop the garment it just grew.
   matchShoulders(spans);
+  matchWaist(spans);
 
   // Spread the shoulder-hung layers apart, but only when there is more than one — a
   // lone top belongs on the centre line. Laid out back to front, left to right, so the
