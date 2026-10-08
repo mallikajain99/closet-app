@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { wornItemIds } from "@/lib/wears/worn";
 import { createSignedUpload, deleteImage } from "@/lib/images/storage";
 import { uniqueOutfitName } from "@/lib/outfits/naming-sync";
 import { outfitSignature } from "@/lib/outfits/signature";
@@ -315,12 +316,11 @@ export async function logOutfitWear(
       .filter((value): value is string => typeof value === "string"),
   );
 
-  const itemIds = [
-    ...(outfit.currentVersion?.items ?? [])
-      .map((link) => link.itemId)
-      .filter((id) => !removedIds.has(id)),
-    ...addedIds,
-  ];
+  const itemIds = wornItemIds({
+    outfitItemIds: (outfit.currentVersion?.items ?? []).map((link) => link.itemId),
+    added: addedIds,
+    removed: [...removedIds],
+  });
 
   const existing = await db.wearLog.findFirst({
     where: { userId: user.id, wornOn, outfitId: outfit.id },

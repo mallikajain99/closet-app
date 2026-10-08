@@ -59,9 +59,14 @@ export function WoreItWith({
         onClick={() => setOpen(!open)}
         className="label text-ink-subtle underline underline-offset-4 transition-colors hover:text-ink"
       >
+        {/* Names both directions. "Wore it with something different?" reads as a
+            prompt to add, and the ability to leave a piece out — the hat you own but
+            are not wearing today — went unfound behind it. */}
         {changes > 0
           ? `Wore it with changes (${changes})`
-          : "Wore it with something different?"}
+          : pieces.length > 0
+            ? "Add or leave out a piece?"
+            : "Wore it with something different?"}
       </button>
 
       {open && (
@@ -73,6 +78,11 @@ export function WoreItWith({
           {pieces.length > 0 && (
             <>
               <p className="label mt-3 text-ink-subtle">Leave out</p>
+              {/* Pictures, like the "Also wore" tiles below. These were name-only
+                  chips, which is the wrong way round: adding a garment starts from a
+                  name you are searching for, while leaving one out starts from a thing
+                  you can see on the figure above. Matching the two also means the panel
+                  reads as one control with two directions rather than two controls. */}
               <ul className="mt-2 flex flex-wrap gap-2">
                 {pieces.map((piece) => {
                   const off = dropped.includes(piece.id);
@@ -87,13 +97,46 @@ export function WoreItWith({
                               : [...dropped, piece.id],
                           )
                         }
-                        className={`label border px-3 py-1.5 transition-colors ${
+                        aria-pressed={off}
+                        title={
+                          off ? `${piece.name} — left out` : `Leave out ${piece.name}`
+                        }
+                        className={`flex w-20 flex-col items-center gap-1 border p-1 transition-colors ${
                           off
-                            ? "border-line text-ink-subtle line-through"
-                            : "border-line-strong text-ink-muted hover:border-ink hover:text-ink"
+                            ? "border-line opacity-45"
+                            : "border-line hover:border-line-strong"
                         }`}
                       >
-                        {piece.name}
+                        <span className="relative h-16 w-full bg-surface-sunken">
+                          {piece.imageUrl && (
+                            <Image
+                              src={piece.imageUrl}
+                              alt=""
+                              fill
+                              unoptimized
+                              sizes="80px"
+                              className="object-contain"
+                            />
+                          )}
+                          {/* A struck-through thumbnail, so the state survives being
+                              read at a glance: opacity alone is ambiguous next to a
+                              garment that is simply pale. */}
+                          {off && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute inset-0 flex items-center justify-center"
+                            >
+                              <span className="h-px w-[86%] rotate-[-20deg] bg-ink" />
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          className={`w-full truncate text-center text-meta ${
+                            off ? "text-ink-subtle line-through" : "text-ink-muted"
+                          }`}
+                        >
+                          {piece.name}
+                        </span>
                       </button>
                     </li>
                   );
