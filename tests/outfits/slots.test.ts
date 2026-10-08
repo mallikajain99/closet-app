@@ -505,8 +505,10 @@ describe("tights", () => {
     category: "ACCESSORY" as const,
     subcategory: "tights",
     name: "Black sheer tights",
-    renderWidth: 420,
-    renderHeight: 880,
+    // The real pair's proportions: a flat-laid pair of tights is about 0.27 as wide as
+    // it is tall, which is the whole reason height was the wrong axis for them.
+    renderWidth: 270,
+    renderHeight: 1000,
   };
   const skirt = { category: "BOTTOM" as const, subcategory: "skirt", name: "Black mini skirt" };
   const dress = { category: "DRESS" as const, subcategory: "shift dress", name: "Brown shift dress" };
@@ -519,18 +521,27 @@ describe("tights", () => {
     expect(paintDepth(tights)).toBeLessThan(paintDepth(dress));
   });
 
-  it("hangs from the waist and reaches the ankle, like a bottom", () => {
-    const { top, height } = layoutFor(tights);
-    expect(top).toBeCloseTo(WAIST, 5);
-    expect(top + height).toBeGreaterThan(0.9);
+  it("stands on the floor and reaches up past the waist", () => {
+    // Floor-anchored rather than waist-anchored, since width now sets the height and the
+    // result is taller than waist-to-ankle. Hanging them from the waist would push the
+    // hem through the floor; standing them on it puts the extra length up behind the
+    // skirt, where their paint depth hides it.
+    const { placed } = composeOutfit([tights]);
+    const span = placed[0];
+    expect(span.top + span.height).toBeCloseTo(FLOOR, 5);
+    expect(span.top).toBeLessThan(WAIST);
   });
 
-  it("is sized by height, not to a belt's width", () => {
-    // Inheriting `widthTarget` drew them a fifth of the figure wide — a leg-shaped
-    // smudge at hip height. Clearing it is what makes them a full-length garment.
-    expect(slotFor(tights).widthTarget).toBeUndefined();
+  it("is sized to a leg's width, not a belt's and not its photograph's", () => {
+    // Sized by height they drew 0.135 wide against a 0.386 skirt — two legs occupying a
+    // third of the width of the garment above them. A flat-laid pair photographs tall
+    // and narrow; a pair of legs is neither.
+    expect(slotFor(tights).widthTarget).toBe(0.16);
+    expect(slotFor(tights).widthTarget).not.toBe(CATEGORY_SLOT.ACCESSORY.widthTarget);
+
     const { placed } = composeOutfit([tights]);
-    expect(placed[0].height).toBeGreaterThan(0.3);
+    const span = placed[0];
+    expect(drawnWidth(span.item, span.height)).toBeCloseTo(0.16, 5);
   });
 
   it("leaves a belt alone", () => {
@@ -689,5 +700,52 @@ describe("shoes are sized by width", () => {
       return span.top + span.height;
     };
     expect(sole("Black knee-high boots")).toBeCloseTo(sole("Converse low tops"), 5);
+  });
+});
+
+describe("a belt takes its width from the bottom", () => {
+  const belt = {
+    category: "ACCESSORY" as const, subcategory: "belt", name: "Brown leather belt",
+    renderWidth: 628, renderHeight: 205,
+  };
+  const wideSkirt = {
+    category: "BOTTOM" as const, subcategory: "skirt", name: "Black flowy mini skirt",
+    renderWidth: 700, renderHeight: 490,
+  };
+  const narrowJeans = {
+    category: "BOTTOM" as const, subcategory: "jeans", name: "Slim black jeans",
+    renderWidth: 300, renderHeight: 800,
+  };
+
+  const beltWidth = (bottom: typeof wideSkirt) => {
+    const { placed } = composeOutfit([bottom, belt]);
+    const span = placed.find((p) => p.item.name === "Brown leather belt")!;
+    return drawnWidth(span.item, span.height)!;
+  };
+
+  it("draws wider against a wider bottom", () => {
+    // The fixed width it used to take was a guess made with no bottom in view: against a
+    // mini skirt it came out less than half the waistband it was fastening.
+    expect(beltWidth(wideSkirt)).toBeGreaterThan(beltWidth(narrowJeans));
+  });
+
+  it("stays narrower than the bottom it is worn on", () => {
+    for (const bottom of [wideSkirt, narrowJeans]) {
+      const { placed } = composeOutfit([bottom, belt]);
+      const of = (name: string) => {
+        const span = placed.find((p) => p.item.name === name)!;
+        return drawnWidth(span.item, span.height)!;
+      };
+      expect(of("Brown leather belt")).toBeLessThan(of(bottom.name));
+    }
+  });
+
+  it("falls back to its own size when there is no bottom", () => {
+    const { placed } = composeOutfit([belt]);
+    const span = placed[0];
+    expect(drawnWidth(span.item, span.height)).toBeCloseTo(
+      CATEGORY_SLOT.ACCESSORY.widthTarget!,
+      5,
+    );
   });
 });

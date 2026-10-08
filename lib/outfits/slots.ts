@@ -530,6 +530,18 @@ const LAYERED_CATEGORIES: Category[] = ["OUTERWEAR", "DRESS", "TOP"];
  */
 const WORN_OVER_INNERMOST = /\b(tie|necktie|bow ?tie)\b/i;
 
+/** Accessories that fasten round a waistband and should match its width. */
+const BELTED = /\bbelts?\b/i;
+
+/**
+ * A waistband's width as a fraction of the bottom's widest point.
+ *
+ * Measured off the renders: a straight trouser is nearly 1, an A-line mini skirt about
+ * 0.58. 0.62 sits near the flared end on purpose — a belt slightly too narrow reads as
+ * a belt, and one too wide reads as a fault.
+ */
+const BELT_WAIST_RATIO = 0.62;
+
 /**
  * How far out a garment is worn, low to high: a coat is the outermost thing on a
  * person, a dress the innermost.
@@ -620,6 +632,34 @@ export function composeOutfit<T extends LayoutSubject>(
     // knee-high boot from 0.13 to 0.33 without this leaves its top edge fixed and lifts
     // the sole two thirds of a leg off the ground.
     if (slot.edge === "bottom") span.top = slot.anchor - span.height;
+  }
+
+  /**
+   * A belt is as wide as the waist it is worn on, so it takes its width from the bottom.
+   *
+   * The fixed 0.18 it used to draw at was a guess made with no bottom in view, and it
+   * showed: against a mini skirt drawing 0.386 the belt came out less than half the
+   * width of the waistband it was supposed to be fastening, which reads as a belt
+   * floating in front of a skirt rather than one worn with it.
+   *
+   * BELT_WAIST_RATIO is an approximation and knowingly so. What a belt should match is
+   * the bottom's width *at its top edge*, and the only number available here is the
+   * bounding box — the widest point, which on an A-line skirt is the hem. Measuring the
+   * top edge during processing and storing it is the real fix; this is within a few
+   * percent for a straight trouser and errs narrow on a flared skirt, which is the safer
+   * direction to be wrong in.
+   */
+  const lowerGarment = spans.find((span) => span.item.category === "BOTTOM");
+  if (lowerGarment) {
+    const bottomWidth = drawnWidth(lowerGarment.item, lowerGarment.height);
+    for (const span of spans) {
+      if (!BELTED.test(describe(span.item))) continue;
+      const aspect = span.item.renderWidth && span.item.renderHeight
+        ? span.item.renderWidth / span.item.renderHeight
+        : null;
+      if (!bottomWidth || !aspect) continue;
+      span.height = (bottomWidth * BELT_WAIST_RATIO) / aspect;
+    }
   }
 
   // Before anything measures these heights: gap-closing, the frame, and the box-fit
