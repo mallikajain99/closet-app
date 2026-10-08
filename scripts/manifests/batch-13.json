@@ -1,0 +1,26 @@
+[
+  {
+    "file": "Screenshot 2026-10-07 at 11.50.31 PM.png",
+    "name": "Slate blue satin tie",
+    "category": "ACCESSORY",
+    "subcategory": "tie",
+    "colors": ["slate blue"],
+    "seasons": ["FALL", "WINTER", "SPRING", "SUMMER"],
+    "formality": "smart",
+    "material": "satin",
+    "pattern": "solid",
+    "tagNames": ["work"]
+  },
+  {
+    "file": "Screenshot 2026-10-07 at 11.52.00 PM.png",
+    "name": "Navy and white striped tie",
+    "category": "ACCESSORY",
+    "subcategory": "tie",
+    "colors": ["navy", "white"],
+    "seasons": ["FALL", "WINTER", "SPRING", "SUMMER"],
+    "formality": "smart",
+    "material": "silk",
+    "pattern": "striped",
+    "tagNames": ["work"]
+  }
+]

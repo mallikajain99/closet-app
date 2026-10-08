@@ -135,6 +135,8 @@ export const processedKeysFor = (itemId: string) => ({
 type ItemToProcess = {
   id: string;
   category: Category;
+  /** Guides the body mask: what to protect when the photo is of someone wearing it. */
+  subcategory: string | null;
   originalImageKey: string;
 };
 
@@ -183,7 +185,7 @@ export async function processItemImage(
 
   const item = await client.item.findUnique({
     where: { id: itemId },
-    select: { id: true, category: true, originalImageKey: true },
+    select: { id: true, category: true, subcategory: true, originalImageKey: true },
   });
 
   if (!item?.originalImageKey) return { ok: false, error: "Item has no source image." };
@@ -222,7 +224,12 @@ export async function runPipeline(
 
         // Phones upload HEIC, which sharp cannot always decode — convert first.
         const original = await toDecodable(Buffer.from(await data.arrayBuffer()));
-        const cutout = await cutOutGarment(original);
+        // Category and subcategory go in so the segmenter knows what to protect when
+        // the photograph turns out to be of someone wearing the garment.
+        const cutout = await cutOutGarment(original, {
+          category: item.category,
+          subcategory: item.subcategory,
+        });
         return normalizeCutout(cutout, item.category);
       },
       3,

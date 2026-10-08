@@ -56,7 +56,7 @@ async function main() {
     },
     orderBy: { createdAt: "asc" },
     take: LIMIT,
-    select: { id: true, name: true, category: true, originalImageKey: true },
+    select: { id: true, name: true, category: true, subcategory: true, originalImageKey: true },
   });
 
   console.log(`${items.length} item(s) to process${APPLY ? "" : " (dry run)"}\n`);
@@ -74,7 +74,12 @@ async function main() {
 
     const result = await runPipeline(
       db,
-      { id: item.id, category: item.category, originalImageKey: item.originalImageKey! },
+      {
+        id: item.id,
+        category: item.category,
+        subcategory: item.subcategory,
+        originalImageKey: item.originalImageKey!,
+      },
       (delay) => process.stdout.write(`retrying in ${delay / 1000}s … `),
     );
 

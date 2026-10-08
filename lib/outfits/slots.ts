@@ -224,6 +224,29 @@ const SHAPE_OVERRIDES: Array<{
     },
   },
   {
+    // A tie hangs from the collar to about the waist, and is the one accessory worn
+    // *over* the garment it sits on rather than under it — unlike the belt at 22, which
+    // an untucked shirt is supposed to hide.
+    //
+    // 46 rather than a number just above TOP's 30, because the layered categories do
+    // not use their static z: `paintDepth` spreads them across a band from
+    // LAYER_Z_BASE to LAYER_Z_BASE + LAYER_Z_SPAN, so a shirt actually resolves to
+    // 38.75 and a camisole higher still. The tie has to clear the whole band, and stay
+    // under footwear at 50.
+    //
+    // Shoulder-anchored like every upper-body piece, so it lines up with the collar of
+    // whatever it is worn with instead of floating at its own height.
+    match: /\b(tie|necktie|bow ?tie)\b/i,
+    categories: ["ACCESSORY"],
+    layout: {
+      height: 0.28,
+      anchor: SHOULDER,
+      edge: "top",
+      widthTarget: undefined,
+      z: 46,
+    },
+  },
+  {
     // Socks sit at the ankle and are worn under both the shoe and the trouser hem.
     //
     // Anchored at the ankle by their *bottom* edge, like shoes, because that is the end
@@ -435,6 +458,15 @@ const LAYER_SPREAD = 0.13;
 const LAYERED_CATEGORIES: Category[] = ["OUTERWEAR", "DRESS", "TOP"];
 
 /**
+ * Accessories that belong to the innermost layer rather than to the figure's centre.
+ *
+ * Only a tie so far. A belt sits at the waist where the layers have already converged,
+ * and a scarf would arguably want the outermost layer instead — so this is a list, not
+ * a flag on the shape override.
+ */
+const WORN_OVER_INNERMOST = /\b(tie|necktie|bow ?tie)\b/i;
+
+/**
  * How far out a garment is worn, low to high: a coat is the outermost thing on a
  * person, a dress the innermost.
  *
@@ -539,6 +571,27 @@ export function composeOutfit<T extends LayoutSubject>(
     layered.forEach((span, index) => {
       span.offsetX = -LAYER_SPREAD + index * step;
     });
+  }
+
+  /**
+   * A tie rides on the innermost layer rather than on the centre line.
+   *
+   * It is worn over a shirt, and the shirt is the *last* of the layered pieces — the
+   * spread above puts the outermost garment leftmost and the innermost rightmost, so a
+   * centred tie lands in the gap between a cardigan and the shirt it belongs to,
+   * touching neither. Taking the innermost garment's offset puts it on the collar it
+   * would actually hang from.
+   *
+   * No spread, one layer, nothing to follow: the tie stays centred, which is where the
+   * lone shirt is too.
+   */
+  const innermost = layered.at(-1);
+  if (innermost) {
+    for (const span of spans) {
+      if (WORN_OVER_INNERMOST.test(describe(span.item))) {
+        span.offsetX = innermost.offsetX;
+      }
+    }
   }
 
   // Walk down the figure pulling each garment up to meet the one above. `reach` is the

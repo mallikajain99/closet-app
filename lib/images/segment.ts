@@ -322,6 +322,66 @@ export async function hangerMask(source: Buffer): Promise<Buffer> {
 }
 
 /**
+ * Binary mask of the person wearing the garment — skin, hair and everything else they
+ * have on.
+ *
+ * A retailer's photograph is often shot on a model, and background removal does exactly
+ * what it says: it removes the *background*, leaving the model. A pair of track pants
+ * imported this way arrived as a whole person from the waist down, trainers included,
+ * which is not a garment and cannot be cropped into one because the legs are inside it.
+ *
+ * Named positively, like the hanger mask and for the same reason: subtraction — erase
+ * whatever the clothing mask does not call clothing — is what used to eat straps and
+ * collar bands. Asking where the *body* is means a pixel is only erased when something
+ * affirmatively says "this is a person".
+ *
+ * The footwear terms matter as much as the skin ones. A model's trainers are clothing,
+ * so a clothing mask keeps them, and the result is a pair of trousers with shoes
+ * floating below them.
+ */
+export async function bodyMask(source: Buffer, keepPrompt: string): Promise<Buffer> {
+  return promptedMask(
+    source,
+    // Short, and measured. The long version of this list —
+    // "person,human,face,head,hair,neck,arm,hand,bare skin,leg,foot,shoe,sneaker,boot"
+    // — behaves like the bare word "person": it masks 96% of the cutout, the garment
+    // included, and erasing that leaves an empty frame. Which is exactly what it did.
+    "person,shoe,sneaker",
+    // The garment being catalogued, so the model is pushed away from calling it part of
+    // the person. One word; see keepPromptFor for why.
+    keepPrompt,
+  );
+}
+
+/**
+ * What to protect from the body mask, for a garment of this kind.
+ *
+ * **One word, deliberately.** The negative prompt is the lever here, and it is far more
+ * sensitive than it looks: measured on a pair of track pants worn by a model, a negative
+ * of "track pants,trousers,pants,jeans,skirt,shorts,leggings" produced a body mask
+ * covering 0.1% of the cutout — nothing — while the single word "trousers" produced
+ * 22.6%, which is the model's torso, arms and trainers. Listing synonyms does not make
+ * the exclusion broader, it makes the whole mask collapse.
+ *
+ * Derived from the category rather than the item name, because the name is prose —
+ * "Black relaxed track pants" — and this wants a noun the segmentation model knows.
+ */
+export function keepPromptFor(category: string): string {
+  const base: Record<string, string> = {
+    TOP: "shirt",
+    BOTTOM: "trousers",
+    DRESS: "dress",
+    OUTERWEAR: "jacket",
+    SHOE: "shoe",
+    BAG: "bag",
+    HAT: "hat",
+    ACCESSORY: "belt",
+    JEWELRY: "necklace",
+  };
+  return base[category] ?? "clothing";
+}
+
+/**
  * Read a mask as one byte per pixel, at the cutout's dimensions.
  *
  * `info.channels` is read back rather than assumed: `.greyscale()` does not guarantee a
@@ -841,7 +901,155 @@ async function applyKeep(
  * subject; the prompted mask knows what clothing is but traces it too loosely to cut
  * with. Multiplying one by the other keeps the precise edge and drops the hanger.
  */
-export async function cutOutGarment(source: Buffer): Promise<Buffer> {
+/**
+ * How much of the cutout must read as "person" before the body pass runs.
+ *
+ * A flat-lay or a hanger shot picks up a few stray percent — a hand holding a label, a
+ * skin-toned background. Erasing on that would be the subtraction mistake again. A
+ * garment genuinely worn by a model takes up far more of the frame than this.
+ */
+const BODY_PRESENT_FRACTION = 0.12;
+
+/**
+ * Above this, the "body" mask is really masking the garment, so it is thrown away.
+ *
+ * A model wearing trousers measured 23%. Nothing legitimate approaches 70%: at that
+ * point the mask has stopped distinguishing the person from what they are wearing.
+ */
+const BODY_IMPLAUSIBLE_FRACTION = 0.7;
+
+/** Blur radius used to grow the body mask over its own outline. Small on purpose. */
+const BODY_EDGE_SIGMA = 2;
+
+/**
+ * Everything of the model that is not the garment, erased.
+ *
+ * Returns the cutout untouched when there is no body to speak of, so the ordinary
+ * flat-lay path costs one extra prediction and changes nothing.
+ */
+async function eraseBody(
+  cutout: Buffer,
+  source: Buffer,
+  keepPrompt: string,
+): Promise<Buffer> {
+  const mask = await bodyMask(source, keepPrompt).catch((error: unknown) => {
+    // Logged rather than swallowed. A silent fallback here is indistinguishable from
+    // "there was no body", which is exactly the confusion that cost an evening on the
+    // hanger gate.
+    console.log(`    body mask unavailable (${(error as Error).message.slice(0, 80)})`);
+    return null;
+  });
+  if (!mask) return cutout;
+
+  const { width, height } = await sharp(cutout).metadata();
+  if (!width || !height) return cutout;
+
+  const { bits: body } = await readMask(mask, width, height);
+  const alpha = await readAlpha(cutout);
+
+  let garmentPixels = 0;
+  let bodyPixels = 0;
+  for (let i = 0; i < alpha.length; i += 1) {
+    if (alpha[i] <= 8) continue;
+    garmentPixels += 1;
+    if (body[i]) bodyPixels += 1;
+  }
+  if (garmentPixels === 0) return cutout;
+
+  const fraction = bodyPixels / garmentPixels;
+  if (fraction < BODY_PRESENT_FRACTION) return cutout;
+
+  // Upper gate, the same idea as the hanger one. A body mask that claims most of the
+  // cutout has not found a person wearing a garment — it has found the garment, and
+  // applying it erases everything. That is not a hypothetical: it produced a blank
+  // frame for a pair of track pants, and a blank frame is worse than an uncut one
+  // because it looks like the item has no photograph at all.
+  if (fraction > BODY_IMPLAUSIBLE_FRACTION) {
+    console.log(
+      `    body mask claimed ${(fraction * 100).toFixed(0)}% of the cutout — discarded as implausible`,
+    );
+    return cutout;
+  }
+
+  console.log(`    body detected (${(fraction * 100).toFixed(0)}% of the cutout) — erasing it`);
+
+  // Grown slightly before erasing. A segmentation edge lands a pixel or two inside the
+  // thing it outlines, so erasing the mask exactly leaves a pale halo in the shape of
+  // whatever was removed — ghost arms and ghost trainers around the trousers.
+  const grown = await growGate(body, width, height, BODY_EDGE_SIGMA);
+
+  // 255, not 1. `applyKeep` writes these values straight into the alpha channel, so a
+  // "keep" of 1 is alpha 1 — invisible. That produced a fully transparent image which
+  // still measured 773×922, because the normalizer trims on bounds it had already
+  // computed: the item looked like it had no photograph at all.
+  const keep = new Uint8Array(alpha.length);
+  for (let i = 0; i < alpha.length; i += 1) keep[i] = grown[i] ? 0 : 255;
+
+  // Then keep only the largest surviving piece.
+  //
+  // Erasing the body leaves thin bright outlines where the arms and trainers were —
+  // anti-aliased edge pixels from the original background removal, lying just outside
+  // what the mask called "person", so no amount of growing the mask reaches them. They
+  // are, however, disconnected from the garment, which is a property nothing else here
+  // has: a person wears one garment per photograph and it is a single connected shape.
+  //
+  // Scoped to this path on purpose. The same rule applied to every cutout would eat the
+  // second shoe of a pair, which is why an earlier attempt at a general speck filter was
+  // reverted.
+  onlyLargestIsland(keep, width, height);
+
+  return applyKeep(cutout, keep, width, height);
+}
+
+/**
+ * Zero everything in `keep` that is not part of its biggest connected region.
+ *
+ * Four-way flood fill, iterative rather than recursive — a garment spans hundreds of
+ * thousands of pixels and a recursive fill overflows the stack on the first one.
+ */
+function onlyLargestIsland(keep: Uint8Array, width: number, height: number) {
+  const label = new Int32Array(keep.length).fill(-1);
+  const sizes: number[] = [];
+  const stack: number[] = [];
+
+  for (let start = 0; start < keep.length; start += 1) {
+    if (!keep[start] || label[start] !== -1) continue;
+
+    const id = sizes.length;
+    let size = 0;
+    stack.push(start);
+    label[start] = id;
+
+    while (stack.length) {
+      const index = stack.pop()!;
+      size += 1;
+      const x = index % width;
+      const y = (index - x) / width;
+
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const next = ny * width + nx;
+        if (!keep[next] || label[next] !== -1) continue;
+        label[next] = id;
+        stack.push(next);
+      }
+    }
+    sizes.push(size);
+  }
+
+  if (sizes.length < 2) return;
+
+  let biggest = 0;
+  for (let i = 1; i < sizes.length; i += 1) if (sizes[i] > sizes[biggest]) biggest = i;
+  for (let i = 0; i < keep.length; i += 1) if (label[i] !== biggest) keep[i] = 0;
+}
+
+export async function cutOutGarment(
+  source: Buffer,
+  hint?: { category: string; subcategory?: string | null },
+): Promise<Buffer> {
   /**
    * The mask is an enhancement, never a prerequisite.
    *
@@ -857,7 +1065,7 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
     return null;
   };
 
-  const [cutout, mask, hanger] = await Promise.all([
+  const [plain, mask, hanger] = await Promise.all([
     removeBackground(source),
     clothingMask(source).catch((error: unknown) => {
       // Only a genuine "the model found nothing" is a reason to skip the gate. A
@@ -873,6 +1081,12 @@ export async function cutOutGarment(source: Buffer): Promise<Buffer> {
     // retailer's product shot — so it falls back rather than failing.
     hangerMask(source).catch(emptyMaskIsFine),
   ]);
+
+  // Before anything else: if this is a photograph of someone wearing the garment, the
+  // model is part of the "foreground" that background removal kept, and every rule
+  // below — where the clothing starts, whether a bar is a hanger — would be reasoning
+  // about a person.
+  const cutout = hint ? await eraseBody(plain, source, keepPromptFor(hint.category)) : plain;
 
   if (!mask) return cutout;
 

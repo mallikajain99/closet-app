@@ -554,3 +554,70 @@ describe("socks", () => {
     expect(slotFor(other).z).toBe(CATEGORY_SLOT.ACCESSORY.z);
   });
 });
+
+describe("ties", () => {
+  const tie = {
+    category: "ACCESSORY" as const,
+    subcategory: "tie",
+    name: "Navy striped tie",
+    renderWidth: 160,
+    renderHeight: 900,
+  };
+  const shirt = { category: "TOP" as const, subcategory: "shirt", name: "White shirt" };
+
+  it("sits over every layered garment, unlike any other accessory", () => {
+    // A belt hides under an untucked shirt; a tie never does. The check is against the
+    // whole layered band rather than one garment, because `paintDepth` spreads tops and
+    // outerwear across a range — a shirt resolves to 38.75, not TOP's static 30.
+    const camisole = { category: "TOP" as const, subcategory: "camisole", name: "Camisole" };
+    const coat = { category: "OUTERWEAR" as const, subcategory: "coat", name: "Wool coat" };
+    for (const layer of [shirt, camisole, coat]) {
+      expect(paintDepth(tie)).toBeGreaterThan(paintDepth(layer));
+    }
+  });
+
+  it("still goes under the shoes", () => {
+    const shoe = { category: "SHOE" as const, subcategory: "loafers", name: "Loafers" };
+    expect(paintDepth(tie)).toBeLessThan(paintDepth(shoe));
+  });
+
+  it("hangs from the collar, not from its own height", () => {
+    expect(layoutFor(tie).top).toBeCloseTo(SHOULDER, 5);
+  });
+
+  it("stops around the waist", () => {
+    const { top, height } = layoutFor(tie);
+    expect(top + height).toBeCloseTo(WAIST, 1);
+  });
+});
+
+describe("a tie worn with layers", () => {
+  const tie = { category: "ACCESSORY" as const, subcategory: "tie", name: "Navy striped tie" };
+  const shirt = { category: "TOP" as const, subcategory: "shirt", name: "Blue shirt" };
+  const cardigan = {
+    category: "OUTERWEAR" as const,
+    subcategory: "cardigan",
+    name: "Green cardigan",
+  };
+
+  it("rides on the innermost layer, not the centre line", () => {
+    // The spread puts the outermost garment leftmost and the innermost rightmost, so a
+    // centred tie lands in the gap between the two and touches neither.
+    const { placed } = composeOutfit([cardigan, shirt, tie]);
+    const at = (name: string) => placed.find((p) => p.item.name === name)!;
+
+    expect(at("Navy striped tie").offsetX).toBeCloseTo(at("Blue shirt").offsetX, 5);
+    expect(at("Navy striped tie").offsetX).not.toBeCloseTo(at("Green cardigan").offsetX, 5);
+  });
+
+  it("stays centred when there is only one layer to sit on", () => {
+    const { placed } = composeOutfit([shirt, tie]);
+    expect(placed.find((p) => p.item.name === "Navy striped tie")!.offsetX).toBe(0);
+  });
+
+  it("leaves a belt on the centre line", () => {
+    const belt = { category: "ACCESSORY" as const, subcategory: "belt", name: "Brown belt" };
+    const { placed } = composeOutfit([cardigan, shirt, belt]);
+    expect(placed.find((p) => p.item.name === "Brown belt")!.offsetX).toBe(0);
+  });
+});

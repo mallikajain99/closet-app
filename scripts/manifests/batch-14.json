@@ -1,0 +1,16 @@
+[
+  {
+    "file": "Screenshot 2026-10-08 at 11.32.28 AM.png",
+    "name": "Navy Kilimanjaro embroidered sweatshirt",
+    "category": "TOP",
+    "subcategory": "sweatshirt",
+    "colors": ["navy"],
+    "seasons": ["FALL", "WINTER", "SPRING"],
+    "sleeveLength": "long",
+    "formality": "casual",
+    "material": "fleece",
+    "pattern": "graphic",
+    "silhouette": ["relaxed"],
+    "tagNames": ["gym"]
+  }
+]
