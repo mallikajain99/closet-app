@@ -1,4 +1,4 @@
-import { CATEGORY_EXTENT } from "@/lib/images/normalize";
+import { CANVAS_SIZE, CATEGORY_EXTENT } from "@/lib/images/normalize";
 import type { Category, Slot } from "@prisma/client";
 
 /**
@@ -96,11 +96,19 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
     widthTarget: 0.18,
     anchor: WAIST,
     edge: "top",
-    // Behind the upper layers, over the waistband. A belt worn under an untucked shirt
-    // is not visible, and drawing it across the shirt's body was the thing that looked
-    // off. Where a top is cropped or tucked — or spread aside, as layered tops are —
-    // the belt shows at the waist, which is where it should be.
-    z: 22,
+    // Over the upper layers, not behind them — reversed once tops began spreading side
+    // by side.
+    //
+    // The old reasoning was sound while layers were stacked on the centre line: a belt
+    // under an untucked shirt is not visible, so drawing it across the shirt's body
+    // looked wrong. But a spread layout is a flat lay, not a photograph of a person —
+    // the shirt is laid *beside* the blazer, not over it — so "under the shirt" has
+    // stopped meaning anything. What it produced instead was worse than either: the
+    // shirt, offset to one side, covered half the belt and left a fragment poking out
+    // past its edge, which reads as a rendering fault rather than a garment.
+    //
+    // 47 clears the layered band (30 to 44) and the tie at 46, and stays under footwear.
+    z: 47,
   },
 
   // Everything worn on the upper body hangs from the shoulders, so they all share one
@@ -235,10 +243,26 @@ const SHAPE_OVERRIDES: Array<{
     categories: ["ACCESSORY"],
     layout: {
       height: 0.5,
-      anchor: WAIST,
-      edge: "top",
-      // Cleared, not reduced: inherited from the belt, it drew them at a belt's width.
-      widthTarget: undefined,
+      // Width-targeted, and anchored at the floor rather than the waist.
+      //
+      // Sized by height they drew 0.135 wide against a 0.386 skirt — two legs occupying
+      // a third of the width of the garment above them, which is what "the tights look
+      // odd" was. A flat-laid pair photographs tall and narrow; a pair of legs is
+      // neither. Width is the dimension that is stable on a body.
+      //
+      // Floor-anchored because the height then follows the photograph's aspect and comes
+      // out taller than waist-to-ankle. Hanging them from the waist would push the hem
+      // through the floor; standing them on it instead puts the extra length up behind
+      // the skirt, where z 18 hides it anyway.
+      // 0.16 rather than the 0.20 a leg suggests, because the two constraints fight.
+      // The garment fills only about 62% of its canvas height, so its *box* is 1.6x its
+      // drawn height — and the frame must be tall enough for the tallest box or it crops.
+      // At 0.20 the box reached 1.20 against a figure spanning 0.93, and the frame padded
+      // to fit, opening a gap between the hem and the shoes. 0.16 still reads as legs and
+      // leaves the composition alone.
+      widthTarget: 0.16,
+      anchor: FLOOR,
+      edge: "bottom",
       z: 18,
     },
   },
@@ -684,7 +708,17 @@ export function composeOutfit<T extends LayoutSubject>(
    * any error to notice.
    */
   const tallestBox = Math.max(
-    ...spans.map((s) => s.height / CATEGORY_EXTENT[s.item.category].height),
+    ...spans.map((s) => {
+      // The *measured* fill where there is one, exactly as the renderer does. Using the
+      // category fallback for a measured item overstates its box, and for a garment
+      // whose real fill is far from its category's that overstates it wildly: tights
+      // sized to a leg came out with a box twice the frame, which padded the whole
+      // figure and left a gap between the hem and the shoes.
+      const fill = s.item.renderHeight
+        ? s.item.renderHeight / CANVAS_SIZE
+        : CATEGORY_EXTENT[s.item.category].height;
+      return s.height / fill;
+    }),
   );
   // A little headroom so rounding can never push a box past the frame edge.
   const deficit = tallestBox * 1.02 - (bottom - top);
