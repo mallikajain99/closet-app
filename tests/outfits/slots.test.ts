@@ -10,6 +10,7 @@ import {
   WAIST,
   byPaintOrder,
   composeOutfit,
+  drawnWidth,
   layoutFor,
   outerness,
   paintDepth,
@@ -248,9 +249,29 @@ describe("shoulder matching", () => {
     for (const p of placed) expect(p.top).toBeCloseTo(SHOULDER, 5);
   });
 
-  it("leaves a lone top at its natural size", () => {
+  it("pulls a lone top toward the canonical shoulder width", () => {
+    // Superseded "leaves a lone top at its natural size", which was the behaviour that
+    // produced the complaint: with nothing to match against, a single top drew at
+    // whatever width its photograph implied, and across 80 tops that ranged 2.8x.
+    // Matching against other layers says nothing about how big the group should be, and
+    // nothing whatsoever when the group is one garment.
+    const natural = drawnWidth(wide, layoutFor(wide).height)!;
     const { placed } = composeOutfit([wide]);
-    expect(placed[0].height).toBeCloseTo(layoutFor(wide).height, 5);
+    const drawn = drawnWidth(wide, placed[0].height)!;
+
+    expect(Math.abs(drawn - 0.24)).toBeLessThan(Math.abs(natural - 0.24));
+  });
+
+  it("still respects the scale limit, so an oversized coat stays oversized", () => {
+    const huge = {
+      category: "OUTERWEAR" as const,
+      subcategory: "coat",
+      name: "Oversized wool coat",
+      renderWidth: 1000,
+      renderHeight: 300,
+    };
+    const { placed } = composeOutfit([huge]);
+    expect(placed[0].height).toBeGreaterThanOrEqual(layoutFor(huge).height * 0.6 - 1e-9);
   });
 
   it("does nothing when a render was never measured", () => {
@@ -619,5 +640,54 @@ describe("a tie worn with layers", () => {
     const belt = { category: "ACCESSORY" as const, subcategory: "belt", name: "Brown belt" };
     const { placed } = composeOutfit([cardigan, shirt, belt]);
     expect(placed.find((p) => p.item.name === "Brown belt")!.offsetX).toBe(0);
+  });
+});
+
+describe("shoes are sized by width", () => {
+  const wide = {
+    category: "SHOE" as const, subcategory: "sneakers", name: "Converse low tops",
+    renderWidth: 802, renderHeight: 481,
+  };
+  const tall = {
+    category: "SHOE" as const, subcategory: "boots", name: "Black knee-high boots",
+    renderWidth: 320, renderHeight: 612,
+  };
+
+  it("draws every pair the same width, whatever the photograph's shape", () => {
+    // Height was the shared dimension before, and it is the wrong one: across 28 pairs
+    // the drawn width ranged 3.4x, with knee-high boots a third the width of Converse
+    // purely because boots are photographed tall.
+    const { placed } = composeOutfit([wide, tall]);
+    const widthOf = (name: string) => {
+      const span = placed.find((p) => p.item.name === name)!;
+      return span.height * (span.item.renderWidth! / span.item.renderHeight!);
+    };
+    expect(widthOf("Converse low tops")).toBeCloseTo(widthOf("Black knee-high boots"), 5);
+  });
+
+  it("lets the tall pair be taller", () => {
+    const { placed } = composeOutfit([wide, tall]);
+    const heightOf = (name: string) => placed.find((p) => p.item.name === name)!.height;
+    expect(heightOf("Black knee-high boots")).toBeGreaterThan(heightOf("Converse low tops"));
+  });
+
+  it("keeps both pairs standing on the same line", () => {
+    // Bottom-anchored: resizing must move the top edge, not the sole. Without
+    // reapplying the anchor the knee-high boot grows upward from a fixed top and its
+    // sole lifts two thirds of a leg off the ground.
+    const soleOf = (shoe: typeof wide) => {
+      const span = composeOutfit([shoe]).placed[0];
+      return span.top + span.height;
+    };
+    expect(soleOf(tall)).toBeCloseTo(soleOf(wide), 5);
+  });
+
+  it("puts the taller pair's sole no higher than the shorter pair's", () => {
+    const { placed } = composeOutfit([wide, tall]);
+    const sole = (name: string) => {
+      const span = placed.find((p) => p.item.name === name)!;
+      return span.top + span.height;
+    };
+    expect(sole("Black knee-high boots")).toBeCloseTo(sole("Converse low tops"), 5);
   });
 });

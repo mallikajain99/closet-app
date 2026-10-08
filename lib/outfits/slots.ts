@@ -119,10 +119,29 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
   // Everything worn on the lower body hangs from the waist.
   BOTTOM: { slot: "BOTTOM", label: "Bottom", height: 0.5, anchor: WAIST, edge: "top", z: 20 },
 
-  // Shoes stand on the floor, so it is their *bottom* edge that is fixed. Deliberately
-  // larger than anatomy: a foot is ~5% of height seen front-on, but these photos show a
-  // whole shoe from the front, so the true figure renders as a speck.
-  SHOE: { slot: "SHOES", label: "Shoes", height: 0.13, anchor: FLOOR, edge: "bottom", z: 50 },
+  // Shoes stand on the floor, so it is their *bottom* edge that is fixed.
+  //
+  // Sized by width, not height — the second category to need this, for the same reason
+  // as the belt but more starkly. A fixed height of 0.13 left the *width* to fall out of
+  // the photograph: measured across 28 pairs it ranged from 0.068 to 0.231, a 3.4x
+  // spread, with knee-high boots a third the width of a pair of Converse purely because
+  // boots are photographed tall and sneakers are photographed wide.
+  //
+  // Foot length is the dimension that is actually constant from one pair to the next, and
+  // it is what a side-on photograph puts on the horizontal axis. Fixing that makes a
+  // knee-high boot tall and a loafer flat, which is the real difference between them.
+  //
+  // 0.175 is the median width the old height-based rule produced, so the typical pair is
+  // unchanged and only the outliers move.
+  SHOE: {
+    slot: "SHOES",
+    label: "Shoes",
+    height: 0.13,
+    widthTarget: 0.175,
+    anchor: FLOOR,
+    edge: "bottom",
+    z: 50,
+  },
 
   // Carried at the hip, off to one side.
   BAG: { slot: "BAG", label: "Bag", height: 0.18, anchor: 0.46, edge: "top", align: "side", z: 55 },
@@ -385,8 +404,23 @@ const MAX_SHOE_OVERLAP = 0.03;
  */
 const SHOULDER_MATCH_LIMIT = { min: 0.6, max: 1.8 };
 
+/**
+ * How wide a shoulder-hung garment should draw, absent any other evidence.
+ *
+ * Matching layers against each other says nothing about how big the group should be, and
+ * says nothing at all when there is only one of them — which is the common case, and the
+ * one that looked wrong. A lone top took whatever width its photograph implied: measured
+ * across 80 tops that ran from 0.147 to 0.418 of the figure, a 2.8x spread between
+ * garments whose real chest widths are within a few centimetres of each other.
+ *
+ * 0.24 is the median of those measured widths, so the typical top does not move and the
+ * outliers are pulled toward it — and only as far as SHOULDER_MATCH_LIMIT allows, since a
+ * genuinely oversized coat should still read as oversized.
+ */
+const CANONICAL_SHOULDER_WIDTH = 0.24;
+
 /** The width this garment will actually be drawn at, given the height it is laid out to. */
-function drawnWidth(subject: LayoutSubject, height: number): number | null {
+export function drawnWidth(subject: LayoutSubject, height: number): number | null {
   if (!subject.renderWidth || !subject.renderHeight) return null;
   return height * (subject.renderWidth / subject.renderHeight);
 }
@@ -413,7 +447,7 @@ function matchShoulders<T extends LayoutSubject>(
   const layers = spans.filter(
     (span) => span.item.category === "TOP" || span.item.category === "OUTERWEAR",
   );
-  if (layers.length < 2) return;
+  if (layers.length === 0) return;
 
   const measured = layers.map((span) => drawnWidth(span.item, span.height));
   if (measured.some((width) => !width)) return;
@@ -424,8 +458,14 @@ function matchShoulders<T extends LayoutSubject>(
   // be geometric: an arithmetic mean sits nearer the larger widths, so correcting a 3×
   // mismatch would shrink the wide garment by a third while asking the narrow one to
   // nearly double. This splits the ratio evenly, each moving by the same factor.
+  // The canonical width joins the mean as one more voice rather than overruling it. With
+  // a single layer that makes this "move toward the canonical width, within the limit",
+  // which is the case that previously did nothing at all. With several it keeps them
+  // agreeing with each other while stopping the whole group drifting to whatever size
+  // this particular set of photographs implies.
+  const voices = [...widths, CANONICAL_SHOULDER_WIDTH];
   const target = Math.exp(
-    widths.reduce((sum, width) => sum + Math.log(width), 0) / widths.length,
+    voices.reduce((sum, width) => sum + Math.log(width), 0) / voices.length,
   );
 
   layers.forEach((span, index) => {
@@ -545,10 +585,17 @@ export function composeOutfit<T extends LayoutSubject>(
   // Width-targeted categories get their height back-computed from the render's aspect.
   // Done before anything measures these heights, like the shoulder matching below.
   for (const span of spans) {
-    const target = slotFor(span.item).widthTarget;
+    const slot = slotFor(span.item);
     const { renderWidth, renderHeight } = span.item;
-    if (!target || !renderWidth || !renderHeight) continue;
-    span.height = target * (renderHeight / renderWidth);
+    if (!slot.widthTarget || !renderWidth || !renderHeight) continue;
+
+    span.height = slot.widthTarget * (renderHeight / renderWidth);
+
+    // The anchor has to be reapplied, not just the height. A bottom-anchored garment
+    // keeps its *lower* edge on the landmark — shoes stand on the floor — so growing a
+    // knee-high boot from 0.13 to 0.33 without this leaves its top edge fixed and lifts
+    // the sole two thirds of a leg off the ground.
+    if (slot.edge === "bottom") span.top = slot.anchor - span.height;
   }
 
   // Before anything measures these heights: gap-closing, the frame, and the box-fit

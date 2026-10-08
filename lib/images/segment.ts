@@ -998,6 +998,23 @@ async function eraseBody(
   // reverted.
   onlyLargestIsland(keep, width, height);
 
+  // Then an opening — erode, then dilate back — to take out what is left.
+  //
+  // Erasing the body leaves thin bright outlines where the arms and legs were: the
+  // background remover's own anti-aliased fringe, lying just outside what the mask
+  // called "person". Growing the body mask does not reach them and the island filter
+  // cannot drop them, because they touch the garment.
+  //
+  // They are not merely untidy. The normalizer measures the garment's bounds from this
+  // image, and a ghost head above the collar and ghost legs below the hem stretched one
+  // sweatshirt to an aspect of 0.52 — far taller than wide, for a garment that should be
+  // nearly square. The fill correction then drew it two thirds of the size it should
+  // have been. An artefact at the edge became a sizing error in the middle.
+  //
+  // An opening removes any structure thinner than the kernel and leaves everything
+  // thicker untouched, which is exactly the difference between a fringe and a sleeve.
+  await openMask(keep, width, height, BODY_EDGE_SIGMA);
+
   return applyKeep(cutout, keep, width, height);
 }
 
@@ -1007,6 +1024,35 @@ async function eraseBody(
  * Four-way flood fill, iterative rather than recursive — a garment spans hundreds of
  * thousands of pixels and a recursive fill overflows the stack on the first one.
  */
+/**
+ * Morphological opening, in place: erode by `sigma`, then dilate back by the same.
+ *
+ * Both steps are a blur plus a threshold — a high threshold keeps only pixels whose
+ * neighbourhood is mostly set, which erodes; a low one keeps any pixel with a set
+ * neighbour, which dilates. Round-tripping removes thin structures permanently while
+ * restoring the original outline of everything thick enough to survive the erosion.
+ */
+async function openMask(keep: Uint8Array, width: number, height: number, sigma: number) {
+  const pass = async (source: Uint8Array, threshold: number) => {
+    const gray = Buffer.alloc(width * height);
+    for (let i = 0; i < gray.length; i += 1) gray[i] = source[i] ? 255 : 0;
+
+    const { data, info } = await sharp(gray, { raw: { width, height, channels: 1 } })
+      .blur(sigma)
+      .threshold(threshold)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const out = new Uint8Array(width * height);
+    for (let i = 0; i < out.length; i += 1) out[i] = data[i * info.channels] >= 128 ? 1 : 0;
+    return out;
+  };
+
+  const eroded = await pass(keep, 220);
+  const reopened = await pass(eroded, 40);
+  for (let i = 0; i < keep.length; i += 1) keep[i] = reopened[i] ? 255 : 0;
+}
+
 function onlyLargestIsland(keep: Uint8Array, width: number, height: number) {
   const label = new Int32Array(keep.length).fill(-1);
   const sizes: number[] = [];
