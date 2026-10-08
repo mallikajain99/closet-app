@@ -1,0 +1,94 @@
+[
+  {
+    "file": "Screenshot 2026-10-07 at 11.06.09 PM.png",
+    "name": "Taupe ribbed crew socks",
+    "category": "ACCESSORY",
+    "subcategory": "socks",
+    "colors": ["taupe"],
+    "seasons": ["FALL", "WINTER", "SPRING"],
+    "formality": "casual",
+    "material": "ribbed knit",
+    "pattern": "solid"
+  },
+  {
+    "file": "Screenshot 2026-10-07 at 11.06.49 PM.png",
+    "name": "Denim blue ribbed crew socks",
+    "category": "ACCESSORY",
+    "subcategory": "socks",
+    "colors": ["denim blue"],
+    "seasons": ["FALL", "WINTER", "SPRING"],
+    "formality": "casual",
+    "material": "ribbed knit",
+    "pattern": "solid"
+  },
+  {
+    "file": "Screenshot 2026-10-07 at 11.08.28 PM.png",
+    "name": "Cream ribbed crew socks",
+    "category": "ACCESSORY",
+    "subcategory": "socks",
+    "colors": ["cream"],
+    "seasons": ["FALL", "WINTER", "SPRING"],
+    "formality": "casual",
+    "material": "ribbed knit",
+    "pattern": "solid"
+  },
+  {
+    "file": "Screenshot 2026-10-07 at 11.09.04 PM.png",
+    "name": "Red ribbed crew socks",
+    "category": "ACCESSORY",
+    "subcategory": "socks",
+    "colors": ["red"],
+    "seasons": ["FALL", "WINTER", "SPRING"],
+    "formality": "casual",
+    "material": "ribbed knit",
+    "pattern": "solid"
+  },
+  {
+    "file": "Screenshot 2026-10-07 at 11.09.26 PM.png",
+    "name": "Periwinkle ribbed crew socks",
+    "category": "ACCESSORY",
+    "subcategory": "socks",
+    "colors": ["periwinkle"],
+    "seasons": ["FALL", "WINTER", "SPRING"],
+    "formality": "casual",
+    "material": "ribbed knit",
+    "pattern": "solid"
+  },
+  {
+    "file": "Screenshot 2026-10-07 at 11.11.22 PM.png",
+    "name": "Black relaxed track pants",
+    "category": "BOTTOM",
+    "subcategory": "track pants",
+    "colors": ["black"],
+    "seasons": ["FALL", "WINTER", "SPRING"],
+    "formality": "casual",
+    "material": "nylon",
+    "pattern": "solid",
+    "silhouette": ["relaxed", "wide-leg"],
+    "tagNames": ["gym"]
+  },
+  {
+    "file": "Screenshot 2026-10-07 at 11.13.09 PM.png",
+    "name": "Black high-waist flare leggings",
+    "category": "BOTTOM",
+    "subcategory": "leggings",
+    "colors": ["black"],
+    "seasons": ["FALL", "WINTER", "SPRING"],
+    "formality": "casual",
+    "material": "jersey",
+    "pattern": "solid",
+    "silhouette": ["fitted", "flared"],
+    "tagNames": ["gym"]
+  },
+  {
+    "file": "Screenshot 2026-10-07 at 11.16.57 PM.png",
+    "name": "Burgundy leather penny loafers",
+    "category": "SHOE",
+    "subcategory": "loafers",
+    "colors": ["burgundy"],
+    "seasons": ["FALL", "WINTER", "SPRING"],
+    "formality": "smart",
+    "material": "leather",
+    "pattern": "solid"
+  }
+]

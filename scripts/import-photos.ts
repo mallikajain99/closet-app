@@ -31,7 +31,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, existsSync, writeFileSync, mkdtempSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, extname } from "node:path";
 
@@ -155,6 +155,36 @@ async function withRetry<T>(
   return { error: { message: `${lastMessage} (after ${attempts} attempts)` } } as never;
 }
 
+/**
+ * Find the photo a manifest entry names, tolerating invisible differences.
+ *
+ * macOS puts a NARROW NO-BREAK SPACE (U+202F) before AM/PM in screenshot filenames.
+ * It is indistinguishable from a normal space on screen and in a terminal, so a
+ * manifest written by hand — or by copying the name out of Finder — gets an ordinary
+ * space and the file "does not exist". Eight socks reported MISSING FILE while sitting
+ * in the directory.
+ *
+ * Exact match first, so nothing changes for names that are already right. Only then the
+ * forgiving pass: Unicode-normalised, every kind of space flattened to one, compared
+ * case-insensitively. Ambiguity is reported rather than guessed at.
+ */
+function resolveFile(name: string): string | null {
+  const exact = join(PHOTO_DIR, name);
+  if (existsSync(exact)) return exact;
+
+  const flatten = (value: string) =>
+    value.normalize("NFC").replace(/\s+/gu, " ").trim().toLowerCase();
+
+  const wanted = flatten(name);
+  const matches = readdirSync(PHOTO_DIR).filter((file) => flatten(file) === wanted);
+
+  if (matches.length === 1) return join(PHOTO_DIR, matches[0]);
+  if (matches.length > 1) {
+    console.log(`  AMBIGUOUS: ${name} matches ${matches.length} files`);
+  }
+  return null;
+}
+
 /** Reuse a spelling already in the closet, so bulk import doesn't refragment the vocabulary. */
 function canonicalize(value: string | undefined, existing: string[]) {
   if (!value) return undefined;
@@ -247,14 +277,14 @@ async function main() {
   let skipped = 0;
 
   for (const entry of entries) {
-    const path = join(PHOTO_DIR, entry.file);
+    const path = resolveFile(entry.file);
 
     if (imported.includes(entry.file)) {
       console.log(`  skip (already imported): ${entry.file}`);
       skipped += 1;
       continue;
     }
-    if (!existsSync(path)) {
+    if (!path) {
       console.log(`  MISSING FILE: ${entry.file}`);
       skipped += 1;
       continue;

@@ -135,14 +135,36 @@ async function latestVersionOf(model: string): Promise<string> {
  * Replicate says exactly how long to wait — so honour `retry_after` rather than failing
  * the item and forcing a re-run.
  */
+/**
+ * The earliest the next prediction may be sent.
+ *
+ * Reacting to each 429 separately was not enough, and this is why: processing one
+ * garment costs three predictions — the cut-out, the clothing mask and the hanger mask
+ * — while an account under $5 of credit is capped at six a minute with a burst of one.
+ * So every call after the first is throttled, each one burns its four attempts waiting
+ * ~10s apiece, and the item fails having spent 40 seconds learning what the first
+ * response already said. Two items failed exactly this way.
+ *
+ * Remembering the limit across calls turns that into a queue: once the API has told us
+ * to wait ten seconds, the *next* request waits before being sent rather than being
+ * rejected first. Module-level because the limit is per account, not per item.
+ */
+let nextAllowedAt = 0;
+
 async function postPrediction(
   version: string,
   input: Record<string, unknown>,
-  attempts = 4,
+  attempts = 8,
 ) {
   let response!: Response;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const wait = nextAllowedAt - Date.now();
+    if (wait > 0) {
+      console.log(`    pacing — waiting ${Math.round(wait / 1000)}s before the next call`);
+      await sleep(wait);
+    }
+
     response = await fetch("https://api.replicate.com/v1/predictions", {
       method: "POST",
       headers: {
@@ -152,12 +174,15 @@ async function postPrediction(
       body: JSON.stringify({ version, input }),
     });
 
-    if (response.status !== 429 || attempt === attempts) return response;
+    if (response.status !== 429) return response;
 
     const body = (await response.clone().json().catch(() => ({}))) as { retry_after?: number };
     const waitMs = Math.max(1, body.retry_after ?? 10) * 1000 + 500;
+    // Hold the whole process back, not just this retry.
+    nextAllowedAt = Date.now() + waitMs;
+
+    if (attempt === attempts) return response;
     console.log(`    rate limited — waiting ${Math.round(waitMs / 1000)}s`);
-    await sleep(waitMs);
   }
 
   return response;

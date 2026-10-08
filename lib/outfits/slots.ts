@@ -190,6 +190,83 @@ const LENGTH_OVERRIDES: Array<{
 ];
 
 
+/**
+ * Garments whose whole shape differs from their category's, not just their hem.
+ *
+ * `LENGTH_OVERRIDES` moves a hem and nothing else, which covers almost everything: a
+ * mini skirt is a skirt that stops sooner. Tights are the case it cannot express. They
+ * are catalogued as an accessory — correctly, they are not a bottom you would wear on
+ * their own — but the accessory layout is built around a belt: anchored at the waist,
+ * sized to about a fifth of the figure's width, painted over the waistband. Applied to
+ * tights that drew a leg-shaped smudge at hip height, in front of the skirt.
+ *
+ * So this overrides the parts of the slot that differ, and leaves the rest. Matched
+ * most specific first, like the other two tables.
+ */
+const SHAPE_OVERRIDES: Array<{
+  match: RegExp;
+  categories: Category[];
+  layout: Partial<SlotLayout>;
+}> = [
+  {
+    // Hosiery: hangs from the waist, runs to the ankle, and is worn *under* everything
+    // on the lower body. The z is the point — below BOTTOM's 20 and DRESS's 28, so a
+    // skirt or dress covers the top of them exactly as it does on a person.
+    match: /\b(tights|stockings|pantyhose|hosiery)\b/i,
+    categories: ["ACCESSORY"],
+    layout: {
+      height: 0.5,
+      anchor: WAIST,
+      edge: "top",
+      // Cleared, not reduced: inherited from the belt, it drew them at a belt's width.
+      widthTarget: undefined,
+      z: 18,
+    },
+  },
+  {
+    // Socks sit at the ankle and are worn under both the shoe and the trouser hem.
+    //
+    // Anchored at the ankle by their *bottom* edge, like shoes, because that is the end
+    // with a fixed position — a crew sock and a knee sock share a heel and differ at
+    // the top. Height is sized so the cuff clears the top of a shoe: shoes occupy
+    // roughly 0.87–1.0, so ending at 0.95 and starting at 0.82 leaves a band visible
+    // between the shoe and the hem, which is the only part of a sock anyone sees.
+    match: /\b(socks?|crew socks?|ankle socks?)\b/i,
+    categories: ["ACCESSORY"],
+    layout: {
+      height: 0.13,
+      anchor: 0.95,
+      edge: "bottom",
+      widthTarget: undefined,
+      // Behind the shoe (50) and behind the trouser (20): a shoe covers the foot of the
+      // sock and a hem covers its cuff, which is exactly the order on a leg.
+      z: 19,
+    },
+  },
+];
+
+/**
+ * The layout a garment actually uses: its category's, with any shape override applied.
+ *
+ * Everything that positions or paints a garment goes through here rather than reading
+ * `CATEGORY_SLOT` directly, so an override cannot be honoured in one place and missed
+ * in another — which is precisely how tights ended up the right size in the builder and
+ * the wrong size on the figure.
+ */
+export function slotFor(subject: LayoutSubject): SlotLayout {
+  const base = CATEGORY_SLOT[subject.category];
+  const override = SHAPE_OVERRIDES.find(
+    (rule) => rule.categories.includes(subject.category) && rule.match.test(describe(subject)),
+  );
+  return override ? { ...base, ...override.layout } : base;
+}
+
+/** The text the override tables match against: subcategory, name, then silhouette. */
+const describe = (subject: LayoutSubject) =>
+  [subject.subcategory, subject.name, ...(subject.silhouette ?? [])]
+    .filter(Boolean)
+    .join(" ");
+
 /** Everything about a garment that bears on how long it is. */
 export type LayoutSubject = {
   category: Category;
@@ -215,10 +292,8 @@ export type LayoutSubject = {
  * put. A shorter hem moves the hem, never the shoulders.
  */
 export function layoutFor(subject: LayoutSubject): { height: number; top: number } {
-  const base = CATEGORY_SLOT[subject.category];
-  const text = [subject.subcategory, subject.name, ...(subject.silhouette ?? [])]
-    .filter(Boolean)
-    .join(" ");
+  const base = slotFor(subject);
+  const text = describe(subject);
 
   const override = LENGTH_OVERRIDES.find(
     (rule) => rule.categories.includes(subject.category) && rule.match.test(text),
@@ -246,7 +321,7 @@ const LAYER_Z_SPAN = 14;
 
 export function paintDepth(subject: LayoutSubject): number {
   if (!LAYERED_CATEGORIES.includes(subject.category)) {
-    return CATEGORY_SLOT[subject.category].z;
+    return slotFor(subject).z;
   }
   // Ranks run 10–80; map them into the band without letting rounding collapse two.
   return LAYER_Z_BASE + (outerness(subject) / 80) * LAYER_Z_SPAN;
@@ -438,7 +513,7 @@ export function composeOutfit<T extends LayoutSubject>(
   // Width-targeted categories get their height back-computed from the render's aspect.
   // Done before anything measures these heights, like the shoulder matching below.
   for (const span of spans) {
-    const target = CATEGORY_SLOT[span.item.category].widthTarget;
+    const target = slotFor(span.item).widthTarget;
     const { renderWidth, renderHeight } = span.item;
     if (!target || !renderWidth || !renderHeight) continue;
     span.height = target * (renderHeight / renderWidth);

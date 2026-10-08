@@ -1,7 +1,7 @@
 import Image from "next/image";
 
 import { CANVAS_SIZE, CATEGORY_EXTENT } from "@/lib/images/normalize";
-import { CATEGORY_SLOT, byPaintOrder, composeOutfit } from "@/lib/outfits/slots";
+import { byPaintOrder, composeOutfit, slotFor } from "@/lib/outfits/slots";
 import type { Category } from "@prisma/client";
 
 export type FigureItem = {
@@ -86,7 +86,7 @@ export function OutfitFigure({
         // A bag hangs beside the body rather than down its centre line, so its box is
         // pinned to one edge and narrowed; everything else spans the full width and is
         // centred, because the render is already centred on its own canvas.
-        const side = CATEGORY_SLOT[item.category].align === "side";
+        const side = slotFor(item).align === "side";
 
         // A layered garment keeps its full-width box — `object-contain` centres the
         // image in it, so translating the box is what moves the garment.

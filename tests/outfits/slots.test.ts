@@ -12,6 +12,8 @@ import {
   composeOutfit,
   layoutFor,
   outerness,
+  paintDepth,
+  slotFor,
 } from "@/lib/outfits/slots";
 
 
@@ -474,5 +476,81 @@ describe("outerness", () => {
     const at = (subcategory: string) =>
       placed.find((p) => p.item.subcategory === subcategory)!.offsetX;
     expect(at("sweater")).toBeLessThan(at("t-shirt"));
+  });
+});
+
+describe("tights", () => {
+  const tights = {
+    category: "ACCESSORY" as const,
+    subcategory: "tights",
+    name: "Black sheer tights",
+    renderWidth: 420,
+    renderHeight: 880,
+  };
+  const skirt = { category: "BOTTOM" as const, subcategory: "skirt", name: "Black mini skirt" };
+  const dress = { category: "DRESS" as const, subcategory: "shift dress", name: "Brown shift dress" };
+
+  it("paints them under everything on the lower body", () => {
+    // The whole point. Tights are catalogued as an accessory, which is right — nobody
+    // wears them alone — but that inherited the belt's paint order and drew them over
+    // the skirt. On a person the skirt covers the top of them.
+    expect(paintDepth(tights)).toBeLessThan(paintDepth(skirt));
+    expect(paintDepth(tights)).toBeLessThan(paintDepth(dress));
+  });
+
+  it("hangs from the waist and reaches the ankle, like a bottom", () => {
+    const { top, height } = layoutFor(tights);
+    expect(top).toBeCloseTo(WAIST, 5);
+    expect(top + height).toBeGreaterThan(0.9);
+  });
+
+  it("is sized by height, not to a belt's width", () => {
+    // Inheriting `widthTarget` drew them a fifth of the figure wide — a leg-shaped
+    // smudge at hip height. Clearing it is what makes them a full-length garment.
+    expect(slotFor(tights).widthTarget).toBeUndefined();
+    const { placed } = composeOutfit([tights]);
+    expect(placed[0].height).toBeGreaterThan(0.3);
+  });
+
+  it("leaves a belt alone", () => {
+    const belt = { category: "ACCESSORY" as const, subcategory: "belt", name: "Brown belt" };
+    expect(slotFor(belt).widthTarget).toBe(CATEGORY_SLOT.ACCESSORY.widthTarget);
+    expect(paintDepth(belt)).toBe(CATEGORY_SLOT.ACCESSORY.z);
+  });
+});
+
+describe("socks", () => {
+  const socks = {
+    category: "ACCESSORY" as const,
+    subcategory: "socks",
+    name: "Red ribbed crew socks",
+    renderWidth: 540,
+    renderHeight: 600,
+  };
+  const shoe = { category: "SHOE" as const, subcategory: "loafers", name: "Black loafers" };
+  const trousers = { category: "BOTTOM" as const, subcategory: "trousers", name: "Black trousers" };
+
+  it("paints them behind the shoe and behind the trouser hem", () => {
+    // The order on a leg: the shoe covers the foot of the sock, the hem covers its cuff.
+    expect(paintDepth(socks)).toBeLessThan(paintDepth(shoe));
+    expect(paintDepth(socks)).toBeLessThan(paintDepth(trousers));
+  });
+
+  it("sits at the ankle, with the cuff clearing the top of a shoe", () => {
+    const sock = layoutFor(socks);
+    const boot = layoutFor(shoe);
+    // The only part of a sock anyone sees is the band above the shoe.
+    expect(sock.top).toBeLessThan(boot.top);
+    expect(sock.top + sock.height).toBeGreaterThan(0.9);
+  });
+
+  it("is not sized to a belt's width", () => {
+    expect(slotFor(socks).widthTarget).toBeUndefined();
+  });
+
+  it("does not catch a sock-adjacent word on another accessory", () => {
+    // "Socket" and "sockets" must not match; the rule is word-bounded.
+    const other = { category: "ACCESSORY" as const, subcategory: "belt", name: "Brown belt" };
+    expect(slotFor(other).z).toBe(CATEGORY_SLOT.ACCESSORY.z);
   });
 });

@@ -26,7 +26,7 @@ import sharp, { type OverlayOptions } from "sharp";
 
 import { CANVAS_SIZE, CATEGORY_EXTENT } from "@/lib/images/normalize";
 import { PROCESSED_BUCKET } from "@/lib/images/storage.client";
-import { CATEGORY_SLOT, byPaintOrder, composeOutfit } from "@/lib/outfits/slots";
+import { byPaintOrder, composeOutfit, slotFor } from "@/lib/outfits/slots";
 
 loadEnv({ path: ".env.local", quiet: true });
 
@@ -136,7 +136,7 @@ async function main() {
       const topFraction = (centre - frame.top) / span - boxHeight / span / 2;
       const heightFraction = boxHeight / span;
 
-      const side = CATEGORY_SLOT[item.category].align === "side";
+      const side = slotFor(item).align === "side";
       const boxW = Math.max(1, Math.round(side ? WIDTH * 0.38 : WIDTH));
       const boxH = Math.max(1, Math.round(heightFraction * HEIGHT));
       const left = Math.round(
