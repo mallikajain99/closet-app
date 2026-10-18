@@ -138,10 +138,30 @@ export function LogWear({
       )}
 
       {recent.length > 0 && (
-        <ul className="mt-4 grid gap-1">
+        <>
+          <p className="label mt-4 text-ink-subtle">
+            Logged days — pick one to change what you wore
+          </p>
+          <ul className="mt-2 grid gap-1">
           {recent.map((wear) => (
             <li key={wear.id} className="flex items-center gap-3 text-meta text-ink-muted">
-              <span className="tabular-nums">{wear.label}</span>
+              {/* The date is the way back into the day.
+                  Editing a logged day works by setting the picker above to its date —
+                  which is useless as a feature if the only place those dates appear is
+                  a list you cannot click. Selecting one scrolls nothing and opens
+                  nothing; it just points the form at that day, and the panel below
+                  follows. */}
+              <button
+                type="button"
+                onClick={() => setWornOn(wear.wornOn)}
+                aria-pressed={wornOn === wear.wornOn}
+                title={`Edit what was worn on ${wear.label}`}
+                className={`tabular-nums underline-offset-4 transition-colors hover:text-ink hover:underline ${
+                  wornOn === wear.wornOn ? "text-ink underline" : ""
+                }`}
+              >
+                {wear.label}
+              </button>
               {wear.planned && <span className="label text-ink-subtle">Planned</span>}
 
               {/* One tap. The whole value of this is that it costs nothing in the
@@ -197,6 +217,7 @@ export function LogWear({
             </li>
           ))}
         </ul>
+        </>
       )}
     </div>
   );

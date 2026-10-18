@@ -37,8 +37,12 @@ export type SlotLayout = {
    *
    * Almost everything is worn on the body's centre line. A bag is carried beside it,
    * and stacking one down the middle reads as a garment rather than an accessory.
+   *
+   * Which side matters now that two things want one: a bag on the right and a scarf on
+   * the left. "side" used to mean the right implicitly, which left no way to say the
+   * other one without the two landing on top of each other.
    */
-  align?: "centre" | "side";
+  align?: "centre" | "left" | "right";
   /**
    * Size this category by how wide it should draw, not how tall.
    *
@@ -152,7 +156,7 @@ export const CATEGORY_SLOT: Record<Category, SlotLayout> = {
   },
 
   // Carried at the hip, off to one side.
-  BAG: { slot: "BAG", label: "Bag", height: 0.18, anchor: 0.46, edge: "top", align: "side", z: 55 },
+  BAG: { slot: "BAG", label: "Bag", height: 0.18, anchor: 0.46, edge: "top", align: "right", z: 55 },
 };
 
 /**
@@ -279,14 +283,22 @@ const SHAPE_OVERRIDES: Array<{
     // makes it read as round the neck rather than draped over the chest. It hangs to
     // about the waist, so 0.38 from there.
     //
-    // Over the layers, like the tie and for the same reason: nobody wears a scarf under
-    // a shirt. Below the tie's 46, which matters only in the unlikely event of both.
+    // Hung beside the figure, on the left, opposite the bag.
+    //
+    // Worn round the neck it is drawn over the chest, which is where the outfit is: a
+    // scarf is a large piece of fabric and it covered the thing it was meant to
+    // accessorise. Beside the figure it is legible as part of the look without hiding
+    // any of it — the same reasoning that already puts a bag off to one side, and the
+    // same reason it reads as an accessory there rather than a garment.
+    //
+    // The neck height is kept, so it hangs from roughly where it would be worn.
     match: /\bscarf|scarves|pashmina\b/i,
     categories: ["ACCESSORY"],
     layout: {
       height: 0.38,
       anchor: 0.14,
       edge: "top",
+      align: "left",
       // Cleared: a belt's width target would draw a scarf the size of a buckle.
       widthTarget: undefined,
       z: 45,
@@ -629,13 +641,11 @@ const LAYERED_CATEGORIES: Category[] = ["OUTERWEAR", "DRESS", "TOP"];
 /**
  * Accessories that ride on the innermost layer rather than the figure's centre line.
  *
- * A tie is worn over the shirt and a scarf over everything, so strictly they belong on
- * opposite ends of the spread. Both go to the innermost anyway, because the spread's
- * centre line is the *gap* between two garments and anything left there touches neither
- * — which is what made a centred tie look broken. Sitting on the innermost layer is the
- * lesser inaccuracy, and the only one that looks deliberate.
+ * A tie only, now that scarves hang beside the figure: the spread's centre line is the
+ * *gap* between two garments, so a centred tie touched neither and looked broken.
+ * Sitting on the shirt it is worn over is both accurate and legible.
  */
-const WORN_OVER_INNERMOST = /\b(tie|necktie|bow ?tie|scarf|scarves|pashmina)\b/i;
+const WORN_OVER_INNERMOST = /\b(tie|necktie|bow ?tie)\b/i;
 
 /** Accessories that fasten round a waistband and should match its width. */
 const BELTED = /\bbelts?\b/i;

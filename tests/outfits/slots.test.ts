@@ -810,9 +810,13 @@ describe("scarves", () => {
     );
   });
 
-  it("rides on the innermost layer rather than the gap between two", () => {
-    const { placed } = composeOutfit([coat, shirt, scarf]);
-    const at = (name: string) => placed.find((p) => p.item.name === name)!.offsetX;
-    expect(at("Sky blue fringed scarf")).toBeCloseTo(at("White shirt"), 5);
+  it("hangs beside the figure rather than across the outfit", () => {
+    // Superseded "rides on the innermost layer": worn over the chest, a scarf is a
+    // large piece of fabric covering the thing it is meant to accessorise.
+    expect(slotFor(scarf).align).toBe("left");
+  });
+
+  it("goes to the opposite side from the bag, so the two do not stack", () => {
+    expect(slotFor(scarf).align).not.toBe(CATEGORY_SLOT.BAG.align);
   });
 });
