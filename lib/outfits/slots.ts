@@ -44,6 +44,15 @@ export type SlotLayout = {
    */
   align?: "centre" | "left" | "right";
   /**
+   * How much of the frame's width a side-aligned garment may occupy.
+   *
+   * One constant for every side garment put a scarf in a bag's box. Width is the binding
+   * constraint out there — the box is a third of the frame wide and far taller than it
+   * needs to be — so a scarf's layout height did nothing at all, and raising it changed
+   * no pixels. Whatever this is set to *is* the drawn width.
+   */
+  sideWidth?: number;
+  /**
    * Size this category by how wide it should draw, not how tall.
    *
    * Every other garment is sized by height because that is what a body sets: a top
@@ -295,10 +304,15 @@ const SHAPE_OVERRIDES: Array<{
     match: /\bscarf|scarves|pashmina\b/i,
     categories: ["ACCESSORY"],
     layout: {
-      height: 0.38,
+      // Longer than a torso: a scarf hangs, and beside the figure there is room for it
+      // to. Paired with the wider box below, or the height is ignored.
+      height: 0.46,
       anchor: 0.14,
       edge: "top",
       align: "left",
+      // Half the frame rather than the bag's third. A bag is a small object held at the
+      // hip; a scarf is two metres of wool.
+      sideWidth: 0.52,
       // Cleared: a belt's width target would draw a scarf the size of a buckle.
       widthTarget: undefined,
       z: 45,

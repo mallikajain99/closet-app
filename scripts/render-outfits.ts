@@ -136,9 +136,11 @@ async function main() {
       const topFraction = (centre - frame.top) / span - boxHeight / span / 2;
       const heightFraction = boxHeight / span;
 
-      const align = slotFor(item).align;
+      const slot = slotFor(item);
+      const align = slot.align;
+      const sideWidth = slot.sideWidth ?? 0.38;
       const side = align === "left" || align === "right";
-      const boxW = Math.max(1, Math.round(side ? WIDTH * 0.38 : WIDTH));
+      const boxW = Math.max(1, Math.round(side ? WIDTH * sideWidth : WIDTH));
       const boxH = Math.max(1, Math.round(heightFraction * HEIGHT));
       const left = Math.round(
         side

@@ -86,7 +86,9 @@ export function OutfitFigure({
         // A bag hangs beside the body rather than down its centre line, so its box is
         // pinned to one edge and narrowed; everything else spans the full width and is
         // centred, because the render is already centred on its own canvas.
-        const align = slotFor(item).align;
+        const slot = slotFor(item);
+        const align = slot.align;
+        const sideWidth = slot.sideWidth ?? 0.38;
         const side = align === "left" || align === "right";
 
         // A layered garment keeps its full-width box — `object-contain` centres the
@@ -102,7 +104,7 @@ export function OutfitFigure({
                 ? {
                     top,
                     height,
-                    width: "38%",
+                    width: `${sideWidth * 100}%`,
                     ...(align === "left" ? { left: "2%" } : { right: "2%" }),
                   }
                 : {

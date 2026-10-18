@@ -53,6 +53,10 @@ export const CATEGORY_EXTENT: Record<Category, { width: number; height: number }
 const EXTENT_OVERRIDES: Array<{ match: RegExp; extent: { width: number; height: number } }> = [
   // Hosiery is leg-shaped: tall, narrow, and it should fill the canvas like a bottom.
   { match: /\b(tights|stockings|pantyhose|hosiery)\b/i, extent: { width: 0.76, height: 0.9 } },
+  // A scarf is long and hangs. Stored at a belt's 0.62 it filled under half its canvas,
+  // which inflates its render box and leaves the drawn garment smaller than its layout
+  // asked for.
+  { match: /\b(scarf|scarves|pashmina)\b/i, extent: { width: 0.8, height: 0.9 } },
 ];
 
 /** The canvas extent to normalize this garment to. */
