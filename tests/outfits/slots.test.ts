@@ -236,7 +236,7 @@ describe("shoulder matching", () => {
     const top = placed.find((p) => p.item.category === "TOP")!;
     const outer = placed.find((p) => p.item.category === "OUTERWEAR")!;
 
-    const areaOf = (span: { item: typeof wide; height: number }) =>
+    const areaOf = (span: { item: Parameters<typeof widthOf>[0]["item"]; height: number }) =>
       widthOf(span) * span.height;
 
     const before = areaOf({ item: wide, height: layoutFor(wide).height });

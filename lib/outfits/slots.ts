@@ -254,13 +254,16 @@ const SHAPE_OVERRIDES: Array<{
       // out taller than waist-to-ankle. Hanging them from the waist would push the hem
       // through the floor; standing them on it instead puts the extra length up behind
       // the skirt, where z 18 hides it anyway.
-      // 0.16 rather than the 0.20 a leg suggests, because the two constraints fight.
-      // The garment fills only about 62% of its canvas height, so its *box* is 1.6x its
-      // drawn height — and the frame must be tall enough for the tallest box or it crops.
-      // At 0.20 the box reached 1.20 against a figure spanning 0.93, and the frame padded
-      // to fit, opening a gap between the hem and the shoes. 0.16 still reads as legs and
-      // leaves the composition alone.
-      widthTarget: 0.16,
+      // 0.22, against a bottom anchored to 0.27 at the hip — legs are narrower than the
+      // garment over them, but not by much, and 0.16 read as somebody else's legs.
+      //
+      // 0.16 was a workaround for a ceiling that has since been removed. Tights were
+      // stored filling only 62% of their canvas, because ACCESSORY's extent was chosen
+      // for a belt; that made their render box 1.6x their drawn height, and the frame has
+      // to fit the tallest box, so widening them padded the figure and opened a gap above
+      // the shoes. Normalized to a leg's extent instead, the box is close to the garment
+      // and the width can be chosen for how it looks rather than what the frame tolerates.
+      widthTarget: 0.22,
       anchor: FLOOR,
       edge: "bottom",
       z: 18,

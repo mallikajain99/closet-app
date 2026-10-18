@@ -39,6 +39,30 @@ export const CATEGORY_EXTENT: Record<Category, { width: number; height: number }
   ACCESSORY: { width: 0.72, height: 0.62 },
 };
 
+/**
+ * Garments whose canvas extent differs from their category's.
+ *
+ * The same problem the layout table has, in the same place: a category is too coarse a
+ * unit when one of its members is a different shape from the rest. ACCESSORY's 0.62 of
+ * canvas height was chosen for a belt — short, wide, and nowhere near filling a square —
+ * and tights inherited it. They were therefore *stored* occupying 62% of their canvas,
+ * which makes their render box 1.6x whatever height they are drawn at, and the frame has
+ * to be tall enough for the tallest box. That ceiling, not anatomy, is what kept them
+ * drawn thinner than the legs they are.
+ */
+const EXTENT_OVERRIDES: Array<{ match: RegExp; extent: { width: number; height: number } }> = [
+  // Hosiery is leg-shaped: tall, narrow, and it should fill the canvas like a bottom.
+  { match: /\b(tights|stockings|pantyhose|hosiery)\b/i, extent: { width: 0.76, height: 0.9 } },
+];
+
+/** The canvas extent to normalize this garment to. */
+export function extentFor(category: Category, description?: string | null) {
+  const override = description
+    ? EXTENT_OVERRIDES.find((rule) => rule.match.test(description))
+    : undefined;
+  return override?.extent ?? CATEGORY_EXTENT[category];
+}
+
 export type Size = { width: number; height: number };
 
 /**
@@ -52,12 +76,14 @@ export function fitToCategory(
   source: Size,
   category: Category,
   canvas: number = CANVAS_SIZE,
+  /** Name or subcategory, so a garment can take an extent its category would not. */
+  description?: string | null,
 ): Size {
   if (source.width <= 0 || source.height <= 0) {
     throw new Error("Source dimensions must be positive.");
   }
 
-  const extent = CATEGORY_EXTENT[category];
+  const extent = extentFor(category, description);
   const maxWidth = canvas * extent.width;
   const maxHeight = canvas * extent.height;
 

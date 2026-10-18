@@ -76,6 +76,7 @@ async function main() {
       db,
       {
         id: item.id,
+        name: item.name,
         category: item.category,
         subcategory: item.subcategory,
         originalImageKey: item.originalImageKey!,

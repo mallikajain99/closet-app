@@ -37,13 +37,22 @@ export type ProcessOutcome =
  * without trimming to the garment's true bounds every item would be scaled by how much
  * empty space happened to surround it rather than by its own size.
  */
-export async function normalizeCutout(cutout: Buffer, category: Category) {
+export async function normalizeCutout(
+  cutout: Buffer,
+  category: Category,
+  description?: string | null,
+) {
   const trimmed = await sharp(cutout).trim({ threshold: 10 }).png().toBuffer();
   const meta = await sharp(trimmed).metadata();
 
   if (!meta.width || !meta.height) throw new Error("Could not read trimmed dimensions.");
 
-  const fitted = fitToCategory({ width: meta.width, height: meta.height }, category);
+  const fitted = fitToCategory(
+    { width: meta.width, height: meta.height },
+    category,
+    undefined,
+    description,
+  );
   const { left, top } = placeOnCanvas(fitted, category);
 
   const resized = await sharp(trimmed)
@@ -137,6 +146,8 @@ type ItemToProcess = {
   category: Category;
   /** Guides the body mask: what to protect when the photo is of someone wearing it. */
   subcategory: string | null;
+  /** Read alongside subcategory when choosing the canvas extent. */
+  name: string;
   originalImageKey: string;
 };
 
@@ -185,7 +196,7 @@ export async function processItemImage(
 
   const item = await client.item.findUnique({
     where: { id: itemId },
-    select: { id: true, category: true, subcategory: true, originalImageKey: true },
+    select: { id: true, name: true, category: true, subcategory: true, originalImageKey: true },
   });
 
   if (!item?.originalImageKey) return { ok: false, error: "Item has no source image." };
@@ -230,7 +241,11 @@ export async function runPipeline(
           category: item.category,
           subcategory: item.subcategory,
         });
-        return normalizeCutout(cutout, item.category);
+        return normalizeCutout(
+          cutout,
+          item.category,
+          `${item.subcategory ?? ""} ${item.name ?? ""}`,
+        );
       },
       3,
       onRetry,
