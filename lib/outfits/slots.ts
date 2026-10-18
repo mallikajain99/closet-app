@@ -270,6 +270,29 @@ const SHAPE_OVERRIDES: Array<{
     },
   },
   {
+    // A scarf is worn round the neck, which is the anchor this table has had a note
+    // about since the belt was given the waist: "A scarf would want the neck; when one
+    // arrives it needs an anchor override rather than a second guess at one number for
+    // both."
+    //
+    // 0.14 rather than SHOULDER's 0.17 — it sits above the shoulder line, which is what
+    // makes it read as round the neck rather than draped over the chest. It hangs to
+    // about the waist, so 0.38 from there.
+    //
+    // Over the layers, like the tie and for the same reason: nobody wears a scarf under
+    // a shirt. Below the tie's 46, which matters only in the unlikely event of both.
+    match: /\bscarf|scarves|pashmina\b/i,
+    categories: ["ACCESSORY"],
+    layout: {
+      height: 0.38,
+      anchor: 0.14,
+      edge: "top",
+      // Cleared: a belt's width target would draw a scarf the size of a buckle.
+      widthTarget: undefined,
+      z: 45,
+    },
+  },
+  {
     // A tie hangs from the collar to about the waist, and is the one accessory worn
     // *over* the garment it sits on rather than under it — unlike the belt at 22, which
     // an untucked shirt is supposed to hide.
@@ -603,7 +626,16 @@ const LAYERED_CATEGORIES: Category[] = ["OUTERWEAR", "DRESS", "TOP"];
  * and a scarf would arguably want the outermost layer instead — so this is a list, not
  * a flag on the shape override.
  */
-const WORN_OVER_INNERMOST = /\b(tie|necktie|bow ?tie)\b/i;
+/**
+ * Accessories that ride on the innermost layer rather than the figure's centre line.
+ *
+ * A tie is worn over the shirt and a scarf over everything, so strictly they belong on
+ * opposite ends of the spread. Both go to the innermost anyway, because the spread's
+ * centre line is the *gap* between two garments and anything left there touches neither
+ * — which is what made a centred tie look broken. Sitting on the innermost layer is the
+ * lesser inaccuracy, and the only one that looks deliberate.
+ */
+const WORN_OVER_INNERMOST = /\b(tie|necktie|bow ?tie|scarf|scarves|pashmina)\b/i;
 
 /** Accessories that fasten round a waistband and should match its width. */
 const BELTED = /\bbelts?\b/i;

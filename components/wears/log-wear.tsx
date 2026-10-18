@@ -9,6 +9,8 @@ export type RecentWear = {
   id: string;
   wornOn: string;
   label: string;
+  /** What this day actually recorded, so re-picking the date can show it. */
+  itemIds?: string[];
   /** Dated ahead of today: a plan, which counts towards nothing until the day comes. */
   planned?: boolean;
   compliments?: number;
@@ -39,8 +41,14 @@ export function LogWear({
   action: (prev: WearResult | null, formData: FormData) => Promise<WearResult>;
   remove: (wearLogId: string) => Promise<WearResult>;
   compliment: (wearLogId: string, delta: number) => Promise<{ ok: boolean }>;
-  /** Extra fields inside the form — the outfit page passes "wore it with". */
-  children?: React.ReactNode;
+  /**
+   * Extra fields inside the form — the outfit page passes "wore it with".
+   *
+   * A function of the chosen date, not a fixed node, because what those fields should
+   * show depends on it: picking a day already logged has to bring up what was recorded
+   * then, or re-filing it is guesswork rather than an edit.
+   */
+  children?: (wornOn: string) => React.ReactNode;
 }) {
   const router = useRouter();
   const [result, formAction, pending] = useActionState(action, null);
@@ -56,6 +64,8 @@ export function LogWear({
    * would paint the stale date for a frame, and resetting on every render would fight
    * the user while they are still choosing a date.
    */
+  const alreadyLogged = recent.some((wear) => wear.wornOn === wornOn);
+
   const [seen, setSeen] = useState(result);
   if (result !== seen) {
     setSeen(result);
@@ -85,17 +95,22 @@ export function LogWear({
             disabled={pending}
             className="label bg-ink px-5 py-2.5 text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
           >
+            {/* A date already logged files an edit, not a second wear — the action
+                reuses that day's entry and its item list is replaced. Saying "Add"
+                there invited the worry that re-filing would duplicate the day. */}
             {pending
               ? "Saving…"
-              : wornOn === today
-                ? "Worn today"
-                : wornOn > today
-                  ? "Plan this outfit"
-                  : "Add this wear"}
+              : alreadyLogged
+                ? "Update this wear"
+                : wornOn === today
+                  ? "Worn today"
+                  : wornOn > today
+                    ? "Plan this outfit"
+                    : "Add this wear"}
           </button>
         </div>
 
-        {children}
+        {children?.(wornOn)}
       </form>
 
       {result?.ok === false && (

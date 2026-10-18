@@ -22,6 +22,7 @@ export function WoreItWith({
   pieces,
   extras,
   suggested,
+  recorded = null,
 }: {
   /** The outfit's own pieces, each of which can be dropped for this day. */
   pieces: SwappablePiece[];
@@ -29,10 +30,33 @@ export function WoreItWith({
   extras: SwappablePiece[];
   /** What she usually throws over an outfit, learned from her own logs. */
   suggested: SwappablePiece[];
+  /**
+   * What the chosen day already recorded, if it has been logged before.
+   *
+   * Null for a day with no wear yet. When a day *has* one, the panel opens showing its
+   * differences from the outfit rather than empty — otherwise re-filing a logged day is
+   * guesswork, and the only way to correct a mistake was to delete the wear and rebuild
+   * it, which threw away its compliments too.
+   */
+  recorded?: readonly string[] | null;
 }) {
-  const [open, setOpen] = useState(false);
-  const [dropped, setDropped] = useState<string[]>([]);
-  const [added, setAdded] = useState<string[]>([]);
+  // Opened by default when editing an existing day, because there is something to see:
+  // a collapsed panel on a day that already has changes hides the very thing being
+  // edited behind a click.
+  const differs =
+    recorded != null &&
+    (pieces.some((piece) => !recorded.includes(piece.id)) ||
+      recorded.some((id) => !pieces.some((piece) => piece.id === id)));
+
+  const [open, setOpen] = useState(differs);
+  const [dropped, setDropped] = useState<string[]>(
+    recorded == null ? [] : pieces.filter((p) => !recorded.includes(p.id)).map((p) => p.id),
+  );
+  const [added, setAdded] = useState<string[]>(
+    recorded == null
+      ? []
+      : recorded.filter((id) => !pieces.some((piece) => piece.id === id)),
+  );
   const [search, setSearch] = useState("");
 
   const changes = dropped.length + added.length;

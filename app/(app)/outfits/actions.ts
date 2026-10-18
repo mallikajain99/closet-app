@@ -351,13 +351,21 @@ export async function logOutfitWear(
     });
   }
 
-  // A piece swapped out of *this day* is removed from the log even if a previous
-  // log of the same day recorded it, so correcting a mistake actually corrects it.
-  if (removedIds.size > 0) {
-    await db.wearLogItem.deleteMany({
-      where: { wearLogId, itemId: { in: [...removedIds] } },
-    });
-  }
+  /**
+   * The submitted set is the whole truth for this day, so re-filing it is an edit.
+   *
+   * Deleting only the explicitly-dropped pieces made this append-only in practice: log
+   * a day with a coat over the outfit, notice it was the other coat, re-file the day
+   * with the right one — and the day ends up wearing both. The only way to correct
+   * anything was to delete the wear and build it again, which also threw away its
+   * compliments.
+   *
+   * Scoped to the ids this wear should now have rather than to a list of removals, so
+   * a piece dropped by simply not being submitted is dropped too.
+   */
+  await db.wearLogItem.deleteMany({
+    where: { wearLogId, itemId: { notIn: itemIds } },
+  });
 
   revalidatePath("/catalog");
   revalidatePath("/outfits");

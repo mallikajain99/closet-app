@@ -40,7 +40,14 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
       wearLogs: {
         orderBy: { wornOn: "desc" },
         take: 8,
-        select: { id: true, wornOn: true, compliments: true },
+        select: {
+          id: true,
+          wornOn: true,
+          compliments: true,
+          // What that day actually recorded, so re-picking its date opens an edit of it
+          // rather than a blank slate.
+          items: { select: { itemId: true } },
+        },
       },
       photos: { orderBy: { order: "asc" }, select: { id: true, imageKey: true } },
       snoozedUntil: true,
@@ -205,31 +212,42 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
               label: dateLabel(wear.wornOn),
               planned: !hasHappened(wear.wornOn),
               compliments: wear.compliments,
+              itemIds: wear.items.map((link) => link.itemId),
             }))}
             action={logOutfitWear.bind(null, outfit.id)}
             remove={removeOutfitWear.bind(null, outfit.id)}
             compliment={addCompliment}
           >
-            <WoreItWith
-              pieces={items.map((item) => ({
-                id: item.id,
-                name: item.name,
-                imageUrl: urls.get(item.id) ?? null,
-              }))}
-              extras={closet.map((item) => ({
-                id: item.id,
-                name: item.name,
-                imageUrl: closetUrls.get(item.id) ?? null,
-              }))}
-              suggested={suggestedIds
-                .map((id) => byId.get(id))
-                .filter((item) => item !== undefined)
-                .map((item) => ({
+            {(wornOn) => (
+              <WoreItWith
+                // Remounted per date so the panel reflects the day being edited rather
+                // than keeping selections made against a different one.
+                key={wornOn}
+                recorded={
+                  outfit.wearLogs
+                    .find((wear) => wear.wornOn.toISOString().slice(0, 10) === wornOn)
+                    ?.items.map((link) => link.itemId) ?? null
+                }
+                pieces={items.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  imageUrl: urls.get(item.id) ?? null,
+                }))}
+                extras={closet.map((item) => ({
                   id: item.id,
                   name: item.name,
                   imageUrl: closetUrls.get(item.id) ?? null,
                 }))}
-            />
+                suggested={suggestedIds
+                  .map((id) => byId.get(id))
+                  .filter((item) => item !== undefined)
+                  .map((item) => ({
+                    id: item.id,
+                    name: item.name,
+                    imageUrl: closetUrls.get(item.id) ?? null,
+                  }))}
+              />
+            )}
           </LogWear>
 
           <SetAsideControl

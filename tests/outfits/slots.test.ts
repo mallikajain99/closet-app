@@ -778,3 +778,41 @@ describe("a belt takes its width from the bottom", () => {
     );
   });
 });
+
+describe("scarves", () => {
+  const scarf = {
+    category: "ACCESSORY" as const,
+    subcategory: "scarf",
+    name: "Sky blue fringed scarf",
+    renderWidth: 520,
+    renderHeight: 900,
+  };
+  const shirt = { category: "TOP" as const, subcategory: "shirt", name: "White shirt" };
+  const coat = { category: "OUTERWEAR" as const, subcategory: "coat", name: "Wool coat" };
+
+  it("hangs from the neck, above the shoulder line", () => {
+    // The distinction that makes it read as worn round the neck rather than draped
+    // across the chest.
+    expect(layoutFor(scarf).top).toBeLessThan(SHOULDER);
+  });
+
+  it("sits over every layer", () => {
+    for (const layer of [shirt, coat]) {
+      expect(paintDepth(scarf)).toBeGreaterThan(paintDepth(layer));
+    }
+  });
+
+  it("is not drawn at a belt's width", () => {
+    expect(slotFor(scarf).widthTarget).toBeUndefined();
+    const { placed } = composeOutfit([scarf]);
+    expect(drawnWidth(placed[0].item, placed[0].height)).toBeGreaterThan(
+      CATEGORY_SLOT.ACCESSORY.widthTarget!,
+    );
+  });
+
+  it("rides on the innermost layer rather than the gap between two", () => {
+    const { placed } = composeOutfit([coat, shirt, scarf]);
+    const at = (name: string) => placed.find((p) => p.item.name === name)!.offsetX;
+    expect(at("Sky blue fringed scarf")).toBeCloseTo(at("White shirt"), 5);
+  });
+});
