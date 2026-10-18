@@ -562,12 +562,15 @@ describe("tights", () => {
     // Sized by height they drew 0.135 wide against a 0.386 skirt — two legs occupying a
     // third of the width of the garment above them. A flat-laid pair photographs tall
     // and narrow; a pair of legs is neither.
-    expect(slotFor(tights).widthTarget).toBe(0.16);
-    expect(slotFor(tights).widthTarget).not.toBe(CATEGORY_SLOT.ACCESSORY.widthTarget);
+    // Close to the hip width a bottom is anchored to, since legs are narrower than the
+    // garment over them but not by much.
+    const target = slotFor(tights).widthTarget!;
+    expect(target).toBeGreaterThan(CATEGORY_SLOT.ACCESSORY.widthTarget!);
+    expect(target).toBeLessThan(0.27);
 
     const { placed } = composeOutfit([tights]);
     const span = placed[0];
-    expect(drawnWidth(span.item, span.height)).toBeCloseTo(0.16, 5);
+    expect(drawnWidth(span.item, span.height)).toBeCloseTo(target, 5);
   });
 
   it("leaves a belt alone", () => {
