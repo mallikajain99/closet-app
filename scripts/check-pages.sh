@@ -18,6 +18,20 @@ cd "$(dirname "$0")/.."
 LOG="${TMPDIR:-/tmp}/closet-dev.log"
 PAGES=(/ /catalog /outfits /outfits/new /calendar /inspiration /inspiration/new)
 
+# Detail pages too, resolved at run time, because the list above is every route that
+# takes no parameter — and the one failure this script was written for most recently was
+# on an outfit detail page. A server component passed a *function* as children to a
+# client component, which is a runtime error and not a type error: tsc passed, the tests
+# passed, and `next build` passed as well, since these routes are dynamic and the build
+# never renders them.
+DETAIL=$(npx tsx scripts/first-ids.ts 2>/dev/null)
+if [ -n "$DETAIL" ]; then
+  # shellcheck disable=SC2206
+  PAGES+=($DETAIL)
+else
+  echo "! could not resolve detail pages — checking the parameterless routes only"
+fi
+
 echo "→ restarting dev server"
 lsof -ti:3000 | xargs kill 2>/dev/null
 sleep 1

@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useState } from "react";
 
+import { useWornOn } from "@/components/wears/log-wear";
+
 export type SwappablePiece = { id: string; name: string; imageUrl: string | null };
 
 /**
@@ -22,7 +24,7 @@ export function WoreItWith({
   pieces,
   extras,
   suggested,
-  recorded = null,
+  recordedByDate = {},
 }: {
   /** The outfit's own pieces, each of which can be dropped for this day. */
   pieces: SwappablePiece[];
@@ -31,15 +33,22 @@ export function WoreItWith({
   /** What she usually throws over an outfit, learned from her own logs. */
   suggested: SwappablePiece[];
   /**
-   * What the chosen day already recorded, if it has been logged before.
+   * What each already-logged day recorded, keyed by date.
    *
-   * Null for a day with no wear yet. When a day *has* one, the panel opens showing its
-   * differences from the outfit rather than empty — otherwise re-filing a logged day is
-   * guesswork, and the only way to correct a mistake was to delete the wear and rebuild
-   * it, which threw away its compliments too.
+   * The whole map rather than one day's worth, because the day in question is chosen in
+   * the form above and this is rendered from a *server* component — which can pass data
+   * across the boundary but not a function to look it up with. The chosen date arrives
+   * through context instead.
+   *
+   * When the chosen day has a wear, the panel opens showing its differences from the
+   * outfit rather than empty. Otherwise re-filing a logged day is guesswork, and the
+   * only way to correct a mistake was to delete the wear and rebuild it, which threw
+   * away its compliments too.
    */
-  recorded?: readonly string[] | null;
+  recordedByDate?: Record<string, string[]>;
 }) {
+  const wornOn = useWornOn();
+  const recorded = wornOn ? (recordedByDate[wornOn] ?? null) : null;
   // Opened by default when editing an existing day, because there is something to see:
   // a collapsed panel on a day that already has changes hides the very thing being
   // edited behind a click.
@@ -48,15 +57,29 @@ export function WoreItWith({
     (pieces.some((piece) => !recorded.includes(piece.id)) ||
       recorded.some((id) => !pieces.some((piece) => piece.id === id)));
 
+  const droppedFor = (ids: readonly string[] | null) =>
+    ids == null ? [] : pieces.filter((p) => !ids.includes(p.id)).map((p) => p.id);
+  const addedFor = (ids: readonly string[] | null) =>
+    ids == null ? [] : ids.filter((id) => !pieces.some((piece) => piece.id === id));
+
   const [open, setOpen] = useState(differs);
-  const [dropped, setDropped] = useState<string[]>(
-    recorded == null ? [] : pieces.filter((p) => !recorded.includes(p.id)).map((p) => p.id),
-  );
-  const [added, setAdded] = useState<string[]>(
-    recorded == null
-      ? []
-      : recorded.filter((id) => !pieces.some((piece) => piece.id === id)),
-  );
+  const [dropped, setDropped] = useState<string[]>(() => droppedFor(recorded));
+  const [added, setAdded] = useState<string[]>(() => addedFor(recorded));
+
+  /**
+   * Re-read when the date changes, so switching days shows that day.
+   *
+   * Adjusted during render against the last date seen rather than in an effect — the
+   * same pattern the date picker itself uses. An effect would paint one frame of the
+   * previous day's selections.
+   */
+  const [seenDate, setSeenDate] = useState(wornOn);
+  if (wornOn !== seenDate) {
+    setSeenDate(wornOn);
+    setDropped(droppedFor(recorded));
+    setAdded(addedFor(recorded));
+    setOpen(differs);
+  }
   const [search, setSearch] = useState("");
 
   const changes = dropped.length + added.length;

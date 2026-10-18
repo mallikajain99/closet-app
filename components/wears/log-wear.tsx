@@ -1,9 +1,28 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useState, useTransition } from "react";
+import { createContext, useActionState, useContext, useState, useTransition } from "react";
 
 import type { WearResult } from "@/app/(app)/wears/actions";
+
+/**
+ * The date currently chosen in the wear form.
+ *
+ * Context rather than a prop, because the thing that needs it — the "wore it with"
+ * panel — is passed in as `children` from a *server* component, and a server component
+ * cannot hand a client component a function. The first attempt made `children` a
+ * function of the date and failed at runtime with "Functions are not valid as a child of
+ * Client Components": not a type error, so neither tsc nor the tests saw it.
+ *
+ * Both LogWear and the panel are client components, so a context between them crosses no
+ * boundary at all.
+ */
+const WornOnContext = createContext<string | null>(null);
+
+/** The date the wear form is currently set to. Null outside the form. */
+export function useWornOn() {
+  return useContext(WornOnContext);
+}
 
 export type RecentWear = {
   id: string;
@@ -44,11 +63,10 @@ export function LogWear({
   /**
    * Extra fields inside the form — the outfit page passes "wore it with".
    *
-   * A function of the chosen date, not a fixed node, because what those fields should
-   * show depends on it: picking a day already logged has to bring up what was recorded
-   * then, or re-filing it is guesswork rather than an edit.
+   * What those fields show depends on the chosen date, which they read from
+   * `useWornOn()` rather than receiving here.
    */
-  children?: (wornOn: string) => React.ReactNode;
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const [result, formAction, pending] = useActionState(action, null);
@@ -110,7 +128,7 @@ export function LogWear({
           </button>
         </div>
 
-        {children?.(wornOn)}
+        <WornOnContext.Provider value={wornOn}>{children}</WornOnContext.Provider>
       </form>
 
       {result?.ok === false && (

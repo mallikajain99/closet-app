@@ -218,36 +218,34 @@ export default async function OutfitDetailPage(props: PageProps<"/outfits/[outfi
             remove={removeOutfitWear.bind(null, outfit.id)}
             compliment={addCompliment}
           >
-            {(wornOn) => (
-              <WoreItWith
-                // Remounted per date so the panel reflects the day being edited rather
-                // than keeping selections made against a different one.
-                key={wornOn}
-                recorded={
-                  outfit.wearLogs
-                    .find((wear) => wear.wornOn.toISOString().slice(0, 10) === wornOn)
-                    ?.items.map((link) => link.itemId) ?? null
-                }
-                pieces={items.map((item) => ({
-                  id: item.id,
-                  name: item.name,
-                  imageUrl: urls.get(item.id) ?? null,
-                }))}
-                extras={closet.map((item) => ({
+            <WoreItWith
+              // A plain object, not a lookup function: this crosses the server/client
+              // boundary, and only data can.
+              recordedByDate={Object.fromEntries(
+                outfit.wearLogs.map((wear) => [
+                  wear.wornOn.toISOString().slice(0, 10),
+                  wear.items.map((link) => link.itemId),
+                ]),
+              )}
+              pieces={items.map((item) => ({
+                id: item.id,
+                name: item.name,
+                imageUrl: urls.get(item.id) ?? null,
+              }))}
+              extras={closet.map((item) => ({
+                id: item.id,
+                name: item.name,
+                imageUrl: closetUrls.get(item.id) ?? null,
+              }))}
+              suggested={suggestedIds
+                .map((id) => byId.get(id))
+                .filter((item) => item !== undefined)
+                .map((item) => ({
                   id: item.id,
                   name: item.name,
                   imageUrl: closetUrls.get(item.id) ?? null,
                 }))}
-                suggested={suggestedIds
-                  .map((id) => byId.get(id))
-                  .filter((item) => item !== undefined)
-                  .map((item) => ({
-                    id: item.id,
-                    name: item.name,
-                    imageUrl: closetUrls.get(item.id) ?? null,
-                  }))}
-              />
-            )}
+            />
           </LogWear>
 
           <SetAsideControl
